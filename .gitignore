@@ -1,2 +1,12 @@
 .vercel
 .env*.local
+
+# dependencies
+node_modules/
+
+# Vite / build output
+dist/
+.vite/
+
+# local archives
+src.zip

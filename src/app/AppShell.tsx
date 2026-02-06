@@ -1,5 +1,6 @@
 // src/app/AppShell.tsx
 
+import React from "react";
 import type { ReactNode } from "react";
 import { supabase } from "../lib/supabase";
 import "../App.css";

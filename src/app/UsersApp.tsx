@@ -1,12 +1,12 @@
+import React from "react"
 import { useNavigate } from "react-router-dom"
 import TreeDisplay from "../components/TreeDisplay"
 import type { TreeNode } from "../components/TreeDisplay"
-import { useYachtGroupTree } from "../hooks/useYachtGroupTree"
-import React from "react";
+import { useUserGroupTree } from "../hooks/useUserGroupTree"
 
-export default function YachtsApp() {
+export default function UsersApp() {
   const navigate = useNavigate()
-  const { nodes, loading } = useYachtGroupTree()
+  const { nodes, loading } = useUserGroupTree()
 
   if (loading) {
     return <div className="app-content">Loading…</div>
@@ -38,17 +38,18 @@ export default function YachtsApp() {
           marginBottom: 12,
         }}
       >
-        Yachts
+        Users
       </div>
 
       <TreeDisplay
         nodes={nodes as TreeNode[]}
         onSelect={(node) => {
-          if (node.nodeType === "yacht") {
-            navigate(`/apps/yachts/${node.id}`)
+          if (node.nodeType === "user") {
+            navigate(`/apps/users/${node.id}`)
           }
         }}
       />
     </div>
   )
 }
+

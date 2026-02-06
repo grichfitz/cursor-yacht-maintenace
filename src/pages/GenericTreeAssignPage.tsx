@@ -1,3 +1,4 @@
+import React from "react"
 import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import TreeDisplay from "../components/TreeDisplay"
@@ -74,6 +75,7 @@ export default function GenericTreeAssignPage({
     <TreeDisplay
       nodes={nodes}
       renderActions={(node) => {
+        const isVirtual = node.id.startsWith("__")
         const descendants = getDescendants(node.id)
 
         const allChildrenChecked =
@@ -92,16 +94,22 @@ export default function GenericTreeAssignPage({
 <input
   type="checkbox"
   checked={fullyChecked}
+  disabled={isVirtual}
   ref={(el) => {
     if (el) el.indeterminate = !fullyChecked && someChildrenChecked
   }}
   onClick={(e) => {
     e.stopPropagation()
-    toggle(node.id)
+    // Prevent the row label click from firing
+  }}
+  onChange={(e) => {
+    // Controlled input needs onChange (avoids React read-only warning)
+    e.stopPropagation()
+    if (!isVirtual) toggle(node.id)
   }}
 />
 
-            {editBasePath && (
+            {editBasePath && !isVirtual && (
               <div
                 onClick={(e) => {
                   e.stopPropagation()

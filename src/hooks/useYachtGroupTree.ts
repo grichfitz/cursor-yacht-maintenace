@@ -12,6 +12,7 @@ type GroupRow = {
   id: string
   name: string
   parent_group_id: string | null
+  is_archived: boolean | null
 }
 
 type YachtRow = {
@@ -42,7 +43,7 @@ export function useYachtGroupTree() {
 
       const { data: groups, error: groupError } = await supabase
         .from("groups")
-        .select("id, name, parent_group_id")
+        .select("id, name, parent_group_id, is_archived")
         .order("name")
 
       if (groupError) {
@@ -78,9 +79,15 @@ export function useYachtGroupTree() {
 
       /* ---------- 4. Build lookup sets ---------- */
 
-      const assignedYachtIds = new Set(
-        (links as YachtGroupLinkRow[]).map((l) => l.yacht_id)
+      // Ignore archived groups in the yacht tree (archive is an admin concern).
+      const activeGroups = (groups as GroupRow[]).filter((g) => !g.is_archived)
+      const activeGroupIds = new Set(activeGroups.map((g) => g.id))
+
+      const activeLinks = (links as YachtGroupLinkRow[]).filter((l) =>
+        activeGroupIds.has(l.group_id)
       )
+
+      const assignedYachtIds = new Set(activeLinks.map((l) => l.yacht_id))
 
       const yachtMap = new Map<string, YachtRow>()
       ;(yachts as YachtRow[]).forEach((y) => {
@@ -90,7 +97,7 @@ export function useYachtGroupTree() {
       /* ---------- 5. Group nodes ---------- */
 
       const groupNodes: TreeNode[] =
-        (groups as GroupRow[]).map((g) => ({
+        activeGroups.map((g) => ({
           id: g.id,
           parentId: g.parent_group_id,
           label: g.name,
@@ -101,7 +108,7 @@ export function useYachtGroupTree() {
       /* ---------- 6. Yacht nodes (assigned) ---------- */
 
       const yachtNodes: TreeNode[] =
-        (links as YachtGroupLinkRow[])
+        activeLinks
           .map((l) => {
             const yacht = yachtMap.get(l.yacht_id)
             if (!yacht) return null

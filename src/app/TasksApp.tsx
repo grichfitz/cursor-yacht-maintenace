@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom"
 import TreeDisplay from "../components/TreeDisplay"
 import type { TreeNode } from "../components/TreeDisplay"
 import { useTaskTree } from "../hooks/useTaskTree"
+import React from "react";
 
 export default function TasksApp() {
   const navigate = useNavigate()

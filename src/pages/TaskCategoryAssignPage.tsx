@@ -1,6 +1,7 @@
 import { useNavigate, useParams } from "react-router-dom"
 import { useCategoryTree } from "../hooks/useCategoryTree"
 import GenericTreeAssignPage from "./GenericTreeAssignPage"
+import React from "react";
 
 export default function TaskCategoryAssignPage() {
   const navigate = useNavigate()

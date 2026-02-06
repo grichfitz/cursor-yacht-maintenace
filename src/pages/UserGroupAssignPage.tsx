@@ -1,19 +1,24 @@
+import React from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import GenericTreeAssignPage from "./GenericTreeAssignPage"
 import { useGroupTree } from "../hooks/useGroupTree"
-import React from "react";
 
-export default function YachtGroupAssignPage() {
+export default function UserGroupAssignPage() {
   const navigate = useNavigate()
-  const { yachtId } = useParams<{ yachtId: string }>()
+  const { userId } = useParams<{ userId: string }>()
   const { nodes } = useGroupTree()
 
-  if (!yachtId) return null
+  if (!userId) return null
 
   return (
     <div className="app-content">
-
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginBottom: 12,
+        }}
+      >
         <div
           className="primary-button"
           onClick={() => navigate(-1)}
@@ -33,20 +38,18 @@ export default function YachtGroupAssignPage() {
 
       <hr />
 
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>
-        Assigned Groups
-      </div>
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>Assigned Groups</div>
 
       <GenericTreeAssignPage
-        targetId={yachtId}
+        targetId={userId}
         nodes={nodes}
-        // Schema source of truth: yacht_group_links(yacht_id, group_id)
-        mapTable="yacht_group_links"
-        mapTargetField="yacht_id"
+        // Schema source of truth: user_group_links(user_id, group_id)
+        mapTable="user_group_links"
+        mapTargetField="user_id"
         mapNodeField="group_id"
         editBasePath="/groups"
       />
-
     </div>
   )
 }
+

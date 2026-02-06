@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "./lib/supabase";
-
+import React from "react";
 import AppShell from "./app/AppShell";
 import LoginPage from "./pages/LoginPage";
 import AppRoutes from "./app/routes";
