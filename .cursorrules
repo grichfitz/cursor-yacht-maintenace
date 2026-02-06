@@ -1,0 +1,22 @@
+Marine_Task_App_ULTRA_MASTER_v3_3_Feb2026.pdf is architectural law.
+Supabase Snippet Meta Schema Overview.csv is schema authority.
+
+Never violate ULTRA permanent rules.
+Never invent tables.
+Never attach tasks directly to yachts.
+Never compute ownership in React.
+Never overwrite task_results.
+TreeDisplay is UI only.
+SQL is authoritative.
+
+Follow existing src patterns.
+Always generate real production code.
+No mock data.
+
+Always include:
+- React components
+- Supabase queries or RPC
+- Types
+- Routing
+- Error handling
+- Migration SQL if required

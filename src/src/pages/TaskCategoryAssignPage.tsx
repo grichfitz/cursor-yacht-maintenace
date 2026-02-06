@@ -1,0 +1,49 @@
+import { useNavigate, useParams } from "react-router-dom"
+import { useCategoryTree } from "../hooks/useCategoryTree"
+import GenericTreeAssignPage from "./GenericTreeAssignPage"
+
+export default function TaskCategoryAssignPage() {
+  const navigate = useNavigate()
+  const { taskId } = useParams<{ taskId: string }>()
+  const { nodes } = useCategoryTree()
+
+  if (!taskId) return null
+
+  return (
+    <div className="app-content">
+<div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+  <div
+    className="primary-button"
+    onClick={() => navigate(-1)}
+    style={{ cursor: "pointer" }}
+  >
+    ← Back
+  </div>
+
+  <div
+    className="primary-button"
+    onClick={() => navigate("/desktop")}
+    style={{ cursor: "pointer" }}
+  >
+    Home
+  </div>
+</div>
+
+      <hr />
+
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>
+        Assigned Categories
+      </div>
+
+      <GenericTreeAssignPage
+        targetId={taskId}
+        nodes={nodes}
+        mapTable="task_category_map"
+        mapTargetField="task_id"
+        mapNodeField="category_id"
+        editBasePath="/categories"
+      />
+
+    </div>
+  )
+}
