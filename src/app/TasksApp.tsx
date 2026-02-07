@@ -21,21 +21,43 @@ export default function TasksApp() {
         overflow: "hidden",
       }}
     >
-      {/* Back button */}
-      <button
-        onClick={() => navigate(-1)}
+      {/* Top Bar (match editors) */}
+      <div
         style={{
-          background: "transparent",
-          border: "none",
-          padding: 0,
-          marginBottom: 8,
-          color: "var(--text-primary)",
-          fontSize: 15,
-          cursor: "pointer",
+          display: "flex",
+          justifyContent: "space-between",
+          marginBottom: 6,
+          marginTop: -6,
         }}
       >
-        ← Back
-      </button>
+        <button
+          onClick={() => navigate(-1)}
+          style={{
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            color: "var(--text-primary)",
+            padding: 0,
+          }}
+        >
+          ← Back
+        </button>
+
+        <button
+          onClick={() => navigate("/desktop")}
+          style={{
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            color: "var(--text-primary)",
+            padding: 0,
+          }}
+        >
+          Home
+        </button>
+      </div>
+
+      <hr />
 
       {/* Subheading */}
       <div
