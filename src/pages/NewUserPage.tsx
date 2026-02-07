@@ -27,6 +27,7 @@ export default function NewUserPage() {
         body: JSON.stringify({
           email: trimmedEmail,
           displayName: displayName.trim() || undefined,
+          redirectTo: `${window.location.origin}/desktop`,
         }),
       })
 

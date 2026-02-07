@@ -49,11 +49,22 @@ export default async function handler(req: any, res: any) {
 
   const email = (payload.email ?? "").trim()
   const displayName = (payload.displayName ?? "").trim()
-  const redirectTo = (payload.redirectTo ?? "").trim() || undefined
+  const requestedRedirectTo = (payload.redirectTo ?? "").trim() || undefined
 
   if (!email) {
     return send(res, 400, { error: "Email is required" })
   }
+
+  // If caller didn't supply redirectTo, default to this request's origin.
+  // This avoids Supabase falling back to a misconfigured localhost Site URL.
+  const proto =
+    (req.headers?.["x-forwarded-proto"] as string | undefined) || "https"
+  const host =
+    (req.headers?.["x-forwarded-host"] as string | undefined) ||
+    (req.headers?.host as string | undefined)
+  const origin = host ? `${proto}://${host}` : undefined
+
+  const redirectTo = requestedRedirectTo || (origin ? `${origin}/desktop` : undefined)
 
   const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
