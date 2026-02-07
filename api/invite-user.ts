@@ -9,18 +9,33 @@ function send(res: any, status: number, body: Json) {
 }
 
 export default async function handler(req: any, res: any) {
-  if (req.method !== "POST") {
-    return send(res, 405, { error: "Method not allowed" })
-  }
-
   const supabaseUrl =
     process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  // Safe diagnostics endpoint (does not leak values).
+  if (req.method === "GET") {
+    return send(res, 200, {
+      ok: true,
+      env: {
+        supabaseUrlPresent: !!supabaseUrl,
+        serviceRoleKeyPresent: !!serviceRoleKey,
+      },
+    })
+  }
+
+  if (req.method !== "POST") {
+    return send(res, 405, { error: "Method not allowed" })
+  }
 
   if (!supabaseUrl || !serviceRoleKey) {
     return send(res, 500, {
       error:
         "Server is missing SUPABASE_URL (or VITE_SUPABASE_URL) and/or SUPABASE_SERVICE_ROLE_KEY.",
+      env: {
+        supabaseUrlPresent: !!supabaseUrl,
+        serviceRoleKeyPresent: !!serviceRoleKey,
+      },
     })
   }
 
