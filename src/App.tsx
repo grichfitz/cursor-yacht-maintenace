@@ -47,7 +47,7 @@ export default function App() {
 
   if (!session) {
     return (
-      <AppShell showLogout={false}>
+      <AppShell showLogout={false} contentClassName="app-content--auth">
         <LoginPage />
       </AppShell>
     );

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0A84FF" stop-opacity="0.28" />
+      <stop offset="55%" stop-color="#22C7B8" stop-opacity="0.22" />
+      <stop offset="100%" stop-color="#061A2B" stop-opacity="0.10" />
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="900" fill="none" />
+
+  <!-- Soft wave lines -->
+  <g fill="none" stroke="url(#g)" stroke-width="2">
+    <path d="M-50 140 C 250 60, 450 220, 780 160 C 1080 110, 1260 40, 1650 140" opacity="0.60" />
+    <path d="M-50 220 C 240 140, 480 330, 780 250 C 1040 180, 1300 140, 1650 230" opacity="0.45" />
+    <path d="M-50 300 C 210 220, 520 420, 820 330 C 1080 250, 1320 260, 1650 310" opacity="0.35" />
+    <path d="M-50 380 C 240 320, 520 520, 840 410 C 1100 320, 1320 360, 1650 400" opacity="0.30" />
+    <path d="M-50 460 C 260 420, 520 600, 860 490 C 1130 400, 1330 460, 1650 500" opacity="0.22" />
+    <path d="M-50 540 C 260 520, 560 700, 900 580 C 1160 490, 1340 560, 1650 600" opacity="0.18" />
+    <path d="M-50 620 C 300 640, 620 820, 960 690 C 1210 590, 1360 680, 1650 720" opacity="0.14" />
+  </g>
+
+  <!-- A few broad, faint swells -->
+  <g fill="none" stroke="url(#g)" stroke-width="6" opacity="0.18">
+    <path d="M-60 720 C 260 640, 520 820, 900 740 C 1210 680, 1370 620, 1660 720" />
+    <path d="M-60 820 C 280 760, 560 900, 980 840 C 1250 800, 1400 760, 1660 820" />
+  </g>
+</svg>

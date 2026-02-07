@@ -8,11 +8,13 @@ import "../App.css";
 type AppShellProps = {
   children: ReactNode;
   showLogout?: boolean;
+  contentClassName?: string;
 };
 
 export default function AppShell({
   children,
   showLogout = false,
+  contentClassName,
 }: AppShellProps) {
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -26,7 +28,9 @@ export default function AppShell({
       </header>
 
       {/* Main Content */}
-      <main className="app-content">{children}</main>
+      <main className={`app-content ${contentClassName ?? ""}`.trim()}>
+        {children}
+      </main>
 
       {/* Footer */}
       <footer className="app-footer">

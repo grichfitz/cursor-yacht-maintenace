@@ -34,44 +34,45 @@ export default function LoginPage() {
   };
 
   return (
-    <div style={{ padding: 24 }}>
-      <h2>Login</h2>
+    <div className="login-page">
+      <div className="login-card">
+        <div className="login-brand">Welcome aboard</div>
+        <div className="login-subtitle">Sign in to Yacht Maintenance</div>
 
-      <form onSubmit={handleLogin}>
-        <div style={{ marginBottom: 12 }}>
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            style={{ width: "100%", padding: 10 }}
-          />
-        </div>
+        <form onSubmit={handleLogin}>
+          <div style={{ marginBottom: 12 }}>
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="email"
+            />
+          </div>
 
-        <div style={{ marginBottom: 12 }}>
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            style={{ width: "100%", padding: 10 }}
-          />
-        </div>
+          <div style={{ marginBottom: 12 }}>
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              autoComplete="current-password"
+            />
+          </div>
 
-        {error && (
-          <div style={{ color: "red", marginBottom: 12 }}>{error}</div>
-        )}
+          {error && <div className="login-error">{error}</div>}
 
-        <button
-          type="submit"
-          disabled={loading}
-          style={{ width: "100%", padding: 12 }}
-        >
-          {loading ? "Signing in…" : "Sign In"}
-        </button>
-      </form>
+          <button
+            className="login-submit"
+            type="submit"
+            disabled={loading}
+          >
+            {loading ? "Signing in…" : "Sign In"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

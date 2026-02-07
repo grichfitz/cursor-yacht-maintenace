@@ -17,18 +17,32 @@ body,
 /* ---------- Theme ---------- */
 
 :root {
-  --bg-main: #f2f2f7; /* iOS system background */
+  /* Brand */
+  --brand-950: #04101a;
+  --brand-900: #061a2b;
+  --brand-800: #0b2a43;
+  --brand-700: #0f3a59;
+
+  /* Surfaces */
+  --bg-main: #f2f2f7; /* iOS system background baseline */
   --bg-card: #ffffff;
+  --bg-elevated: rgba(255, 255, 255, 0.92);
 
   --text-primary: #1c1c1e;
   --text-secondary: #6e6e73;
 
-  --accent-blue: #007aff;
+  /* Accents */
+  --accent-blue: #0a84ff;
+  --accent-teal: #22c7b8;
   --accent-green: #34c759;
   --accent-orange: #ff9f0a;
   --accent-red: #ff3b30;
 
-  --border-subtle: #e5e5ea;
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.12);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 10px 30px rgba(0, 0, 0, 0.10);
 }
 
 /* ---------- Base ---------- */
@@ -38,19 +52,36 @@ body {
     "SF Pro Text", "SF Pro Display",
     "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 
+  /* No background art outside the app canvas */
   background: var(--bg-main);
   color: var(--text-primary);
+}
+
+/* Root wrapper from main.tsx */
+.app-root {
+  min-height: 100dvh;
+  display: flex;
+  justify-content: center;
+  background: var(--bg-main);
 }
 
 /* ---------- App Canvas ---------- */
 
 .app {
-  min-height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
-  background: var(--bg-main);
+  position: relative;
+  /* Modern look stays INSIDE the canvas */
+  background:
+    radial-gradient(900px 520px at 18% 0%, rgba(34, 199, 184, 0.18), transparent 55%),
+    radial-gradient(900px 520px at 90% 0%, rgba(10, 132, 255, 0.14), transparent 55%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.98));
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  overflow: hidden;
 
   max-width: 430px;          /* iPhone Pro Max width */
+  width: 100%;
   margin: 0 auto;
 }
 
@@ -58,9 +89,10 @@ body {
   .app {
     margin-top: 16px;
     margin-bottom: 16px;
+    height: calc(100dvh - 32px);
     border-radius: 22px;
     overflow: hidden;
-    box-shadow: 0 0 0 1px rgba(0,0,0,0.04);
+    box-shadow: var(--shadow-md);
   }
 }
 
@@ -72,13 +104,16 @@ body {
   justify-content: space-between;
 
   padding: 14px 16px;
-  background: var(--bg-card);
-  border-bottom: 1px solid var(--border-subtle);
+  background: linear-gradient(135deg, var(--brand-900), var(--brand-800));
+  color: white;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
 }
 
 .app-title {
   font-size: 18px;
   font-weight: 600;
+  letter-spacing: 0.2px;
 }
 
 
@@ -98,6 +133,20 @@ body {
   flex: 1;
   padding: 16px 14px 20px;
   overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.app-content--auth {
+  padding: 0;
+  overflow: hidden;
+  /* Avoid reserving a scrollbar gutter (can look like a white bar on the right). */
+  scrollbar-gutter: auto;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid var(--border-subtle);
+  margin: 10px 0;
 }
 
 /* ---------- Cards ---------- */
@@ -107,7 +156,8 @@ body {
   border-radius: 14px;
   padding: 14px;
   margin-bottom: 12px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-sm);
 }
 
 /* ---------- Lists ---------- */
@@ -131,14 +181,27 @@ button {
   border: none;
   padding: 10px 14px;
   font-size: 15px;
-  background: var(--accent-blue);
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-teal));
   color: white;
+  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+}
+
+button:active {
+  transform: translateY(0.5px);
+  filter: brightness(0.98);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+  box-shadow: none;
 }
 
 button.secondary {
   background: var(--bg-card);
   color: var(--accent-blue);
   border: 1px solid var(--border-subtle);
+  box-shadow: none;
 }
 
 /* ---------- Inputs ---------- */
@@ -172,11 +235,11 @@ select:focus {
   align-items: center;
 
   padding: 12px 16px;
-  background: var(--bg-card);
-  border-top: 1px solid var(--border-subtle);
+  background: linear-gradient(135deg, rgba(6, 26, 43, 0.96), rgba(11, 42, 67, 0.96));
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
 
   font-size: 13px;
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.78);
 }
 
 .footer-brand {
@@ -188,7 +251,8 @@ select:focus {
   border: none;
   padding: 6px 8px;
   font-size: 13px;
-  color: var(--accent-red);
+  color: rgba(255, 255, 255, 0.88);
+  box-shadow: none;
 }
 
 .logout-button:active {
@@ -231,7 +295,8 @@ select:focus {
   width: 56px;
   height: 56px;
   border-radius: 14px;
-  background: var(--accent-blue);
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-teal));
+  box-shadow: 0 10px 22px rgba(10, 132, 255, 0.20);
 
   display: flex;
   align-items: center;
@@ -347,4 +412,129 @@ select:focus {
 
 .tree-actions .tree-action-icon:active {
   background: rgba(0, 0, 0, 0.06);
+}
+
+/* ============================= */
+/* Assignment page top controls  */
+/* ============================= */
+
+.primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  user-select: none;
+}
+
+.primary-button:active {
+  background: rgba(0, 0, 0, 0.09);
+}
+
+/* ============================= */
+/* Login page                    */
+/* ============================= */
+
+.login-page {
+  min-height: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 0 14px;
+  position: relative;
+  overflow: hidden;
+}
+
+.login-page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(520px 420px at 20% 10%, rgba(34, 199, 184, 0.35), transparent 60%),
+    radial-gradient(520px 420px at 85% 20%, rgba(10, 132, 255, 0.28), transparent 60%),
+    radial-gradient(600px 480px at 50% 110%, rgba(6, 26, 43, 0.14), transparent 65%);
+  filter: blur(0px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.login-page::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.10) 0%,
+      rgba(255, 255, 255, 0.30) 55%,
+      rgba(255, 255, 255, 0.72) 100%
+    ),
+    url("/login-hero-premium.png");
+  background-repeat: no-repeat;
+  /* Keep the hero aligned to the canvas (not “floating” behind it) */
+  background-position: center, center;
+  background-size: cover, cover;
+  opacity: 0.65;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@media (min-height: 820px) {
+  .login-page::after {
+    opacity: 0.70;
+  }
+}
+
+@media (max-height: 700px) {
+  /* When the viewport is short (keyboard, small phones), keep the card visible. */
+  .login-card {
+    top: 38%;
+  }
+}
+
+.login-card {
+  position: absolute;
+  left: 50%;
+  top: 33%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  max-width: 420px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(0, 0, 0, 0.10);
+  border-radius: 18px;
+  padding: 18px 16px 16px;
+  box-shadow: var(--shadow-md);
+  z-index: 1;
+}
+
+/* Desktop can stay clean; app canvas already has faint waves via .app::before */
+
+.login-brand {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  margin-bottom: 2px;
+}
+
+.login-subtitle {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.login-error {
+  color: var(--accent-red);
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.login-submit {
+  width: 100%;
+  margin-top: 6px;
+  box-shadow: 0 10px 24px rgba(10, 132, 255, 0.22);
 }
