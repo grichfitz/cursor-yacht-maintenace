@@ -32,6 +32,8 @@ export default function TaskDetailPage() {
   const [units, setUnits] = useState<Option[]>([]);
   const [periods, setPeriods] = useState<Option[]>([]);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   /* ---------- Load task ---------- */
 
@@ -84,6 +86,83 @@ export default function TaskDetailPage() {
       .eq("id", taskId);
 
     setSaving(false);
+  };
+
+  /* ---------- Delete (safe) ---------- */
+
+  const handleDelete = async () => {
+    if (!taskId) return;
+
+    setDeleteError(null);
+
+    const ok = window.confirm(
+      "Delete this task template?\n\nThis cannot be undone."
+    );
+    if (!ok) return;
+
+    setDeleting(true);
+
+    // Schema source of truth: tasks can be referenced by task_contexts and yacht_tasks.
+    const { data: contexts, error: ctxErr } = await supabase
+      .from("task_contexts")
+      .select("id")
+      .eq("task_id", taskId)
+      .limit(1);
+
+    if (ctxErr) {
+      setDeleteError(ctxErr.message);
+      setDeleting(false);
+      return;
+    }
+
+    const { data: yachtTasks, error: yachtTaskErr } = await supabase
+      .from("yacht_tasks")
+      .select("id")
+      .eq("task_id", taskId)
+      .limit(1);
+
+    if (yachtTaskErr) {
+      setDeleteError(yachtTaskErr.message);
+      setDeleting(false);
+      return;
+    }
+
+    const isReferenced =
+      (contexts?.length ?? 0) > 0 || (yachtTasks?.length ?? 0) > 0;
+
+    if (isReferenced) {
+      setDeleteError(
+        "This task cannot be deleted because it is already referenced by yacht/task history (task_contexts or yacht_tasks)."
+      );
+      setDeleting(false);
+      return;
+    }
+
+    // Remove category mappings first (avoid orphan links).
+    const { error: mapErr } = await supabase
+      .from("task_category_map")
+      .delete()
+      .eq("task_id", taskId);
+
+    if (mapErr) {
+      setDeleteError(mapErr.message);
+      setDeleting(false);
+      return;
+    }
+
+    // Legacy table (present in schema): if it exists/used, clear it too.
+    await supabase.from("task_category_links").delete().eq("task_id", taskId);
+
+    const { error: delErr } = await supabase.from("tasks").delete().eq("id", taskId);
+
+    if (delErr) {
+      setDeleteError(delErr.message);
+      setDeleting(false);
+      return;
+    }
+
+    setDeleting(false);
+    navigate("/apps/tasks", { replace: true });
   };
 
   return (
@@ -190,20 +269,46 @@ export default function TaskDetailPage() {
 
       <hr />
 
-<button
-  onClick={() => navigate(`/apps/tasks/${taskId}/categories`)}
-  style={{
-    background: "var(--border-subtle)",
-    border: "none",
-    borderRadius: 8,
-    padding: "6px 10px",
-    cursor: "pointer",
-    color: "var(--text-primary)",
-    fontSize: 13,
-  }}
->
-  Assigned Categories
-</button>
+      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <button
+          onClick={() => navigate(`/apps/tasks/${taskId}/categories`)}
+          style={{
+            background: "var(--border-subtle)",
+            border: "none",
+            borderRadius: 12,
+            padding: "4px 10px",
+            cursor: "pointer",
+            color: "var(--text-primary)",
+            fontSize: 13,
+            fontWeight: 500,
+          }}
+        >
+          Assigned Categories
+        </button>
+
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          style={{
+            background: "rgba(255, 59, 48, 0.12)",
+            border: "none",
+            borderRadius: 12,
+            padding: "4px 10px",
+            cursor: deleting ? "default" : "pointer",
+            color: "var(--accent-red)",
+            fontSize: 13,
+            fontWeight: 600,
+          }}
+        >
+          {deleting ? "Deleting…" : "Delete Task"}
+        </button>
+      </div>
+
+      {deleteError && (
+        <div style={{ marginTop: 10, color: "var(--accent-red)", fontSize: 13 }}>
+          {deleteError}
+        </div>
+      )}
 
 
 

@@ -13,7 +13,14 @@ export default function TasksApp() {
   }
 
   return (
-    <div className="app-content">
+    <div
+      className="app-content"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+      }}
+    >
       {/* Back button */}
       <button
         onClick={() => navigate(-1)}
@@ -41,15 +48,39 @@ export default function TasksApp() {
         Tasks
       </div>
 
-      <TreeDisplay
-        nodes={nodes as TreeNode[]}
-        onSelect={(node) => {
-          // Tasks are leaf nodes only
-          if (node.nodeType === "task") {
-            navigate(`/apps/tasks/${node.id}`)
-          }
-        }}
-      />
+      {/* Scroll-limited tree area */}
+      <div style={{ flex: 1, overflowY: "auto", paddingBottom: 8 }}>
+        <TreeDisplay
+          nodes={nodes as TreeNode[]}
+          onSelect={(node) => {
+            // Tasks are leaf nodes only
+            if (node.nodeType === "task") {
+              navigate(`/apps/tasks/${node.id}`)
+            }
+          }}
+        />
+      </div>
+
+      <hr />
+
+      {/* Bottom actions */}
+      <div style={{ paddingTop: 6 }}>
+        <button
+          onClick={() => navigate("/apps/tasks/new")}
+          style={{
+            background: "var(--border-subtle)",
+            border: "none",
+            borderRadius: 12,
+            padding: "4px 10px",
+            cursor: "pointer",
+            color: "var(--text-primary)",
+            fontSize: 13,
+            fontWeight: 500,
+          }}
+        >
+          New Task
+        </button>
+      </div>
     </div>
   )
 }

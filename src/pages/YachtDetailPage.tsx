@@ -10,6 +10,8 @@ export default function YachtDetailPage() {
   const [name, setName] = useState("")
   const [makeModel, setMakeModel] = useState("")
   const [location, setLocation] = useState("")
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -40,6 +42,89 @@ export default function YachtDetailPage() {
       .eq("id", id)
 
     navigate(-1)
+  }
+
+  const handleDelete = async () => {
+    if (!id) return
+
+    setDeleteError(null)
+
+    const ok = window.confirm(
+      "Delete this yacht?\n\nThis cannot be undone."
+    )
+    if (!ok) return
+
+    setDeleting(true)
+
+    // Block deletion if yacht is referenced by execution/history tables.
+    const { data: contexts, error: ctxErr } = await supabase
+      .from("task_contexts")
+      .select("id")
+      .eq("yacht_id", id)
+      .limit(1)
+
+    if (ctxErr) {
+      setDeleteError(ctxErr.message)
+      setDeleting(false)
+      return
+    }
+
+    const { data: yachtTasks, error: yachtTaskErr } = await supabase
+      .from("yacht_tasks")
+      .select("id")
+      .eq("yacht_id", id)
+      .limit(1)
+
+    if (yachtTaskErr) {
+      setDeleteError(yachtTaskErr.message)
+      setDeleting(false)
+      return
+    }
+
+    const isReferenced =
+      (contexts?.length ?? 0) > 0 || (yachtTasks?.length ?? 0) > 0
+
+    if (isReferenced) {
+      setDeleteError(
+        "This yacht cannot be deleted because it is referenced by execution/history (task_contexts or yacht_tasks)."
+      )
+      setDeleting(false)
+      return
+    }
+
+    // Remove non-historical links first.
+    const { error: groupLinkErr } = await supabase
+      .from("yacht_group_links")
+      .delete()
+      .eq("yacht_id", id)
+
+    if (groupLinkErr) {
+      setDeleteError(groupLinkErr.message)
+      setDeleting(false)
+      return
+    }
+
+    const { error: userLinkErr } = await supabase
+      .from("yacht_user_links")
+      .delete()
+      .eq("yacht_id", id)
+
+    if (userLinkErr) {
+      setDeleteError(userLinkErr.message)
+      setDeleting(false)
+      return
+    }
+
+    const { error: delErr } = await supabase.from("yachts").delete().eq("id", id)
+
+    if (delErr) {
+      setDeleteError(delErr.message)
+      setDeleting(false)
+      return
+    }
+
+    setDeleting(false)
+    navigate("/apps/yachts", { replace: true })
   }
 
   if (!id) return null
@@ -111,7 +196,7 @@ export default function YachtDetailPage() {
 
       {/* Assigned Groups — subtle pill like Assigned Categories */}
 
-      <div style={{ marginTop: 8 }}>
+      <div style={{ marginTop: 8, display: "flex", gap: 10, alignItems: "center" }}>
         <button
           onClick={() => navigate(`/yachts/${id}/groups`)}
           style={{
@@ -127,7 +212,30 @@ export default function YachtDetailPage() {
         >
           Assigned Groups
         </button>
+
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          style={{
+            background: "rgba(255, 59, 48, 0.12)",
+            border: "none",
+            borderRadius: 12,
+            padding: "4px 10px",
+            fontSize: 13,
+            fontWeight: 600,
+            color: "var(--accent-red)",
+            cursor: deleting ? "default" : "pointer",
+          }}
+        >
+          {deleting ? "Deleting…" : "Delete Yacht"}
+        </button>
       </div>
+
+      {deleteError && (
+        <div style={{ marginTop: 10, color: "var(--accent-red)", fontSize: 13 }}>
+          {deleteError}
+        </div>
+      )}
 
     </div>
   )

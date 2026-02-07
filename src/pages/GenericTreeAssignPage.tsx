@@ -111,6 +111,7 @@ export default function GenericTreeAssignPage({
 
             {editBasePath && !isVirtual && (
               <div
+                className="tree-action-icon"
                 onClick={(e) => {
                   e.stopPropagation()
                   navigate(`${editBasePath}/${node.id}`)
