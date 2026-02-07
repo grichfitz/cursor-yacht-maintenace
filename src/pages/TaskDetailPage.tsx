@@ -287,6 +287,22 @@ export default function TaskDetailPage() {
         </button>
 
         <button
+          onClick={() => navigate(`/apps/tasks/${taskId}/yachts`)}
+          style={{
+            background: "var(--border-subtle)",
+            border: "none",
+            borderRadius: 12,
+            padding: "4px 10px",
+            cursor: "pointer",
+            color: "var(--text-primary)",
+            fontSize: 13,
+            fontWeight: 500,
+          }}
+        >
+          Assigned Yachts
+        </button>
+
+        <button
           onClick={handleDelete}
           disabled={deleting}
           style={{

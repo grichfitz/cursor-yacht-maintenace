@@ -11,7 +11,10 @@ export default function UserGroupAssignPage() {
   if (!userId) return null
 
   return (
-    <div className="app-content">
+    <div
+      className="app-content"
+      style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}
+    >
       <div
         style={{
           display: "flex",
@@ -40,15 +43,37 @@ export default function UserGroupAssignPage() {
 
       <div style={{ fontWeight: 600, marginBottom: 8 }}>Assigned Groups</div>
 
-      <GenericTreeAssignPage
-        targetId={userId}
-        nodes={nodes}
-        // Schema source of truth: user_group_links(user_id, group_id)
-        mapTable="user_group_links"
-        mapTargetField="user_id"
-        mapNodeField="group_id"
-        editBasePath="/groups"
-      />
+      <div style={{ flex: 1, overflowY: "auto", paddingBottom: 8 }}>
+        <GenericTreeAssignPage
+          targetId={userId}
+          nodes={nodes}
+          // Schema source of truth: user_group_links(user_id, group_id)
+          mapTable="user_group_links"
+          mapTargetField="user_id"
+          mapNodeField="group_id"
+          editBasePath="/groups"
+        />
+      </div>
+
+      <hr />
+
+      <div style={{ paddingTop: 6 }}>
+        <button
+          onClick={() => navigate("/groups/new")}
+          style={{
+            background: "var(--border-subtle)",
+            border: "none",
+            borderRadius: 12,
+            padding: "4px 10px",
+            cursor: "pointer",
+            color: "var(--text-primary)",
+            fontSize: 13,
+            fontWeight: 500,
+          }}
+        >
+          New Group
+        </button>
+      </div>
     </div>
   )
 }

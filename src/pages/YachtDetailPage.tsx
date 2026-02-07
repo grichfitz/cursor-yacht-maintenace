@@ -196,7 +196,7 @@ export default function YachtDetailPage() {
 
       {/* Assigned Groups — subtle pill like Assigned Categories */}
 
-      <div style={{ marginTop: 8, display: "flex", gap: 10, alignItems: "center" }}>
+      <div style={{ marginTop: 8, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         <button
           onClick={() => navigate(`/yachts/${id}/groups`)}
           style={{
@@ -211,6 +211,22 @@ export default function YachtDetailPage() {
           }}
         >
           Assigned Groups
+        </button>
+
+        <button
+          onClick={() => navigate(`/apps/yachts/${id}/tasks`)}
+          style={{
+            background: "var(--border-subtle)",
+            border: "none",
+            borderRadius: 12,
+            padding: "4px 10px",
+            fontSize: 13,
+            fontWeight: 500,
+            color: "var(--text-primary)",
+            cursor: "pointer",
+          }}
+        >
+          Assigned Tasks
         </button>
 
         <button
