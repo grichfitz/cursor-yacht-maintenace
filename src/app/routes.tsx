@@ -18,6 +18,7 @@ import GroupEditorPage from "../pages/GroupEditorPage"
 import NewGroupPage from "../pages/NewGroupPage"
 import UserDetailPage from "../pages/UserDetailPage"
 import UserGroupAssignPage from "../pages/UserGroupAssignPage"
+import MorePage from "../pages/MorePage"
 import React from "react";
 
 
@@ -44,6 +45,7 @@ export default function AppRoutes() {
       <Route path="/users/:userId/groups" element={<UserGroupAssignPage />} />
       <Route path="/groups/new" element={<NewGroupPage />} />
       <Route path="/groups/:groupId" element={<GroupEditorPage />} />
+      <Route path="/more" element={<MorePage />} />
 
     </Routes>
   );

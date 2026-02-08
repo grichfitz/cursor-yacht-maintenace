@@ -111,7 +111,7 @@ export default function GroupEditorPage() {
   if (!groupId) return null
 
   return (
-    <div className="app-content">
+    <div className="screen">
       {/* Top Bar */}
       <div
         style={{

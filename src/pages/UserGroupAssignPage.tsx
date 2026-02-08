@@ -12,7 +12,7 @@ export default function UserGroupAssignPage() {
 
   return (
     <div
-      className="app-content"
+      className="screen"
       style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}
     >
       <div

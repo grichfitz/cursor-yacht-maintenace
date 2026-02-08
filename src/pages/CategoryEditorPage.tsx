@@ -100,7 +100,7 @@ export default function CategoryEditorPage() {
   }, [nodes]);
 
   return (
-    <div className="app-content">
+    <div className="screen">
       {/* Top Bar */}
       <div
         style={{

@@ -287,7 +287,7 @@ export default function YachtTaskAssignPage() {
 
   return (
     <div
-      className="app-content"
+      className="screen"
       style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>

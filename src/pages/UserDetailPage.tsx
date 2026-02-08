@@ -127,7 +127,7 @@ export default function UserDetailPage() {
   if (!userId) return null
 
   return (
-    <div className="app-content">
+    <div className="screen">
       {/* Top Bar */}
       <div
         style={{

@@ -70,7 +70,7 @@ export default function NewTaskPage() {
   }
 
   return (
-    <div className="app-content">
+    <div className="screen">
       {/* Top Bar */}
       <div
         style={{

@@ -125,7 +125,7 @@ export default function NewCategoryPage() {
   }
 
   return (
-    <div className="app-content">
+    <div className="screen">
       {/* Top Bar */}
       <div
         style={{

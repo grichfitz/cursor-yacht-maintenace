@@ -45,7 +45,9 @@ export default function Desktop() {
   const navigate = useNavigate();
 
   return (
-    <div className="desktop">
+    <div className="screen">
+      <div className="screen-title">Dashboard</div>
+
       <div className="desktop-grid">
         {APPS.map((app) => (
           <button
@@ -53,12 +55,8 @@ export default function Desktop() {
             className="desktop-app"
             onClick={() => navigate(app.route)}
           >
-            <div className="desktop-app-icon">
-              {app.icon}
-            </div>
-            <span className="desktop-app-label">
-              {app.name}
-            </span>
+            <div className="desktop-app-icon">{app.icon}</div>
+            <span className="desktop-app-label">{app.name}</span>
           </button>
         ))}
       </div>

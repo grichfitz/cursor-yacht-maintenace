@@ -166,7 +166,7 @@ export default function TaskDetailPage() {
   };
 
   return (
-    <div className="app-content">
+    <div className="screen">
       {/* Top Bar */}
       <div
         style={{

@@ -12,7 +12,7 @@ export default function YachtGroupAssignPage() {
 
   return (
     <div
-      className="app-content"
+      className="screen"
       style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}
     >
 

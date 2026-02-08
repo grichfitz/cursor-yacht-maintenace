@@ -63,7 +63,7 @@ export default function NewUserPage() {
   }
 
   return (
-    <div className="app-content">
+    <div className="screen">
       {/* Top Bar */}
       <div
         style={{

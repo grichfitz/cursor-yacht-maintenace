@@ -85,12 +85,22 @@ export function useUserGroupTree() {
         activeGroupIds.has(l.group_id)
       )
 
+      // Defensive: remove duplicate link rows (prevents duplicate render keys)
+      const seenLinkKeys = new Set<string>()
+      const activeLinksUnique: UserGroupLinkRow[] = []
+      for (const l of activeLinks) {
+        const key = `${l.user_id}:${l.group_id}`
+        if (seenLinkKeys.has(key)) continue
+        seenLinkKeys.add(key)
+        activeLinksUnique.push(l)
+      }
+
       /* ---------- 5. Build lookup maps ---------- */
 
       const userMap = new Map<string, UserRow>()
       ;(users as UserRow[]).forEach((u) => userMap.set(u.id, u))
 
-      const assignedUserIds = new Set(activeLinks.map((l) => l.user_id))
+      const assignedUserIds = new Set(activeLinksUnique.map((l) => l.user_id))
 
       /* ---------- 6. Group nodes ---------- */
 
@@ -104,7 +114,7 @@ export function useUserGroupTree() {
 
       /* ---------- 7. User nodes (assigned) ---------- */
 
-      const userNodes: TreeNode[] = activeLinks
+      const userNodes: TreeNode[] = activeLinksUnique
         .map((l) => {
           const u = userMap.get(l.user_id)
           if (!u) return null
@@ -145,8 +155,9 @@ export function useUserGroupTree() {
       /* ---------- 9. Combine ---------- */
 
       setNodes([
-        ...groupNodes,
+        // Put Unassigned users first so they don't get "lost" at the bottom
         ...(unassignedGroupNode ? [unassignedGroupNode] : []),
+        ...groupNodes,
         ...userNodes,
         ...unassignedUsers,
       ])

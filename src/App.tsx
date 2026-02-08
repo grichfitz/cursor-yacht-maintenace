@@ -39,7 +39,7 @@ export default function App() {
 
   if (loading) {
     return (
-      <AppShell showLogout={false}>
+      <AppShell showTabs={false}>
         <div style={{ padding: 20 }}>Loading…</div>
       </AppShell>
     );
@@ -47,14 +47,14 @@ export default function App() {
 
   if (!session) {
     return (
-      <AppShell showLogout={false} contentClassName="app-content--auth">
+      <AppShell showTabs={false} contentClassName="app-content--auth">
         <LoginPage />
       </AppShell>
     );
   }
 
   return (
-    <AppShell showLogout={true}>
+    <AppShell showTabs={true}>
       <AppRoutes />
     </AppShell>
   );

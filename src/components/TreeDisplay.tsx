@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { ChevronDown, ChevronRight } from "lucide-react"
 import React from "react";
 
@@ -12,6 +12,7 @@ export type TreeNode = {
 
 type TreeDisplayProps = {
   nodes: TreeNode[]
+  defaultExpandedIds?: string[]
   selectedId?: string
   onSelect?: (node: TreeNode) => void
   renderActions?: (node: TreeNode) => React.ReactNode
@@ -21,6 +22,7 @@ type TreeDisplayProps = {
 
 export default function TreeDisplay({
   nodes,
+  defaultExpandedIds,
   selectedId,
   onSelect,
   renderActions,
@@ -28,6 +30,15 @@ export default function TreeDisplay({
   className,
 }: TreeDisplayProps) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    if (!defaultExpandedIds?.length) return
+    setExpanded((prev) => {
+      const next = { ...prev }
+      for (const id of defaultExpandedIds) next[id] = true
+      return next
+    })
+  }, [defaultExpandedIds])
 
   /* ---------- Build adjacency list ---------- */
   const childrenMap = useMemo(() => {
@@ -53,10 +64,10 @@ export default function TreeDisplay({
     const isSelected = node.id === selectedId
 
     return (
-      <div key={node.id}>
+      <div key={`${node.id}::${node.parentId ?? "__root__"}`}>
         <div
           className={`tree-row ${isSelected ? "selected" : ""}`}
-          style={{ paddingLeft: depth * 16 }}
+          style={{ paddingLeft: 12 + depth * 16 }}
         >
           {/* ---------- Chevron / spacer ---------- */}
           {hasChildren ? (

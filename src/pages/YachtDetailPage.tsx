@@ -130,7 +130,7 @@ export default function YachtDetailPage() {
   if (!id) return null
 
   return (
-    <div className="app-content">
+    <div className="screen">
 
       {/* Top Bar (match CategoryEditor) */}
       <div
