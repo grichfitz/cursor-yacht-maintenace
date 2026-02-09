@@ -65,6 +65,13 @@ export default function NewTaskPage() {
       return
     }
 
+    // Best-effort: initialize versioning fields (requires migration_task_versioning.sql).
+    await supabase
+      .from("tasks")
+      .update({ lineage_id: newId, version: 1, is_latest: true })
+      .eq("id", newId)
+      .is("lineage_id", null)
+
     // Replace New Task page in history so Back goes to task list
     navigate(`/apps/tasks/${newId}`, { replace: true })
   }

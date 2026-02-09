@@ -4,6 +4,7 @@ import TreeDisplay from "../components/TreeDisplay"
 import type { TreeNode } from "../components/TreeDisplay"
 import { useTaskTree } from "../hooks/useTaskTree"
 import { supabase } from "../lib/supabase"
+import { Pencil } from "lucide-react"
 
 type TaskContextRow = {
   id: string
@@ -24,6 +25,7 @@ export default function YachtTaskAssignPage() {
   const [checkedTaskIds, setCheckedTaskIds] = useState<string[]>([])
   const [savingTaskId, setSavingTaskId] = useState<string | null>(null)
   const [pageError, setPageError] = useState<string | null>(null)
+  const [overrideNameByTaskId, setOverrideNameByTaskId] = useState<Record<string, string>>({})
 
   useEffect(() => {
     if (!yachtId) return
@@ -54,6 +56,51 @@ export default function YachtTaskAssignPage() {
     load()
   }, [yachtId])
 
+  useEffect(() => {
+    if (!yachtId) return
+
+    const loadOverrides = async () => {
+      // Load yacht+task scope contexts (category_id is null)
+      const { data: scopeContexts, error: scopeErr } = await supabase
+        .from("task_contexts")
+        .select("id, task_id")
+        .eq("yacht_id", yachtId)
+        .is("category_id", null)
+        .not("task_id", "is", null)
+
+      if (scopeErr) return
+
+      const ctxs = (scopeContexts as { id: string; task_id: string }[] | null) ?? []
+      const ctxIds = ctxs.map((c) => c.id)
+      if (!ctxIds.length) {
+        setOverrideNameByTaskId({})
+        return
+      }
+
+      const { data: overrides, error: ovrErr } = await supabase
+        .from("task_context_overrides")
+        .select("task_context_id, name_override")
+        .in("task_context_id", ctxIds)
+
+      if (ovrErr) return
+
+      const nameByCtxId = new Map<string, string>()
+      ;((overrides as any[]) ?? []).forEach((o) => {
+        if (o?.name_override) nameByCtxId.set(o.task_context_id, o.name_override)
+      })
+
+      const map: Record<string, string> = {}
+      ctxs.forEach((c) => {
+        const name = nameByCtxId.get(c.id)
+        if (name) map[c.task_id] = name
+      })
+
+      setOverrideNameByTaskId(map)
+    }
+
+    loadOverrides()
+  }, [yachtId])
+
   const childrenMap = useMemo(() => {
     const map: Record<string, string[]> = {}
     for (const n of nodes) {
@@ -69,6 +116,26 @@ export default function YachtTaskAssignPage() {
     nodes.forEach((n) => map.set(n.id, n))
     return map
   }, [nodes])
+
+  // Show latest task templates, plus any non-latest tasks already assigned to this yacht.
+  const visibleNodes = useMemo(() => {
+    const checked = new Set(checkedTaskIds)
+    return nodes.filter((n) => {
+      if (n.nodeType !== "task") return true
+      const isLatest = (n.meta as any)?.is_latest !== false
+      return isLatest || checked.has(n.id)
+    })
+  }, [nodes, checkedTaskIds])
+
+  const visibleNodesWithOverrides = useMemo(() => {
+    if (!Object.keys(overrideNameByTaskId).length) return visibleNodes
+    return visibleNodes.map((n) => {
+      if (n.nodeType !== "task") return n
+      const override = overrideNameByTaskId[n.id]
+      if (!override) return n
+      return { ...n, label: override }
+    })
+  }, [visibleNodes, overrideNameByTaskId])
 
   const getDescendantTaskIds = (id: string): string[] => {
     const kids = childrenMap[id] || []
@@ -320,7 +387,7 @@ export default function YachtTaskAssignPage() {
 
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 8 }}>
         <TreeDisplay
-          nodes={nodes as TreeNode[]}
+          nodes={visibleNodesWithOverrides as TreeNode[]}
           renderActions={(node) => {
             const isVirtual = node.id.startsWith("__")
 
@@ -328,16 +395,29 @@ export default function YachtTaskAssignPage() {
               const isChecked = checkedTaskIds.includes(node.id)
               const disabled = savingTaskId === node.id
               return (
-                <input
-                  type="checkbox"
-                  checked={isChecked}
-                  disabled={disabled}
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={(e) => {
-                    e.stopPropagation()
-                    toggleTask(node.id)
-                  }}
-                />
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    disabled={disabled}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => {
+                      e.stopPropagation()
+                      toggleTask(node.id)
+                    }}
+                  />
+                  <div
+                    className="tree-action-icon"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      navigate(`/apps/yachts/${yachtId}/tasks/${node.id}/edit`)
+                    }}
+                    title="Edit for this yacht"
+                    style={{ opacity: disabled ? 0.5 : 1 }}
+                  >
+                    <Pencil size={14} />
+                  </div>
+                </div>
               )
             }
 

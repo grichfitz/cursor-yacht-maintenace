@@ -141,22 +141,20 @@ export function useUserGroupTree() {
           meta: u,
         }))
 
-      const unassignedGroupNode: TreeNode | null =
-        unassignedUsers.length > 0
-          ? {
-              id: UNASSIGNED_GROUP_ID,
-              parentId: null,
-              label: "Unassigned users",
-              nodeType: "group",
-              meta: { isVirtual: true },
-            }
-          : null
+      // Always show an "Unassigned users" bucket so users never appear to "disappear".
+      const unassignedGroupNode: TreeNode = {
+        id: UNASSIGNED_GROUP_ID,
+        parentId: null,
+        label: `Unassigned users${unassignedUsers.length ? "" : " (0)"}`,
+        nodeType: "group",
+        meta: { isVirtual: true },
+      }
 
       /* ---------- 9. Combine ---------- */
 
       setNodes([
         // Put Unassigned users first so they don't get "lost" at the bottom
-        ...(unassignedGroupNode ? [unassignedGroupNode] : []),
+        unassignedGroupNode,
         ...groupNodes,
         ...userNodes,
         ...unassignedUsers,

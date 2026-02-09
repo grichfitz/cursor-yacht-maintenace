@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom"
 import TreeDisplay from "../components/TreeDisplay"
 import type { TreeNode } from "../components/TreeDisplay"
 import { useUserGroupTree } from "../hooks/useUserGroupTree"
+import { Folder, User } from "lucide-react"
+import { pickBadgeVariant } from "../ui/badgeColors"
 
 export default function UsersApp() {
   const navigate = useNavigate()
@@ -21,6 +23,26 @@ export default function UsersApp() {
         <TreeDisplay
           nodes={nodes as TreeNode[]}
           defaultExpandedIds={rootIds}
+          renderIcon={(node) => {
+            if (node.nodeType === "group") {
+              const isVirtual = !!node.meta?.isVirtual
+              const variant = isVirtual ? "gray" : pickBadgeVariant(node.id)
+              return (
+                <span className={`tree-icon-badge tree-icon-badge--${variant}`}>
+                  <Folder size={16} />
+                </span>
+              )
+            }
+            if (node.nodeType === "user") {
+              const variant = pickBadgeVariant(node.parentId ?? node.id)
+              return (
+                <span className={`tree-icon-badge tree-icon-badge--${variant} tree-icon-badge--solid`}>
+                  <User size={16} />
+                </span>
+              )
+            }
+            return null
+          }}
           onSelect={(node) => {
             if (node.nodeType === "user") {
               navigate(`/apps/users/${node.id}`)

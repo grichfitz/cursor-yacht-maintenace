@@ -21,6 +21,9 @@ type TaskRow = {
   id: string
   name: string
   description: string | null
+  lineage_id?: string | null
+  version?: number | null
+  is_latest?: boolean | null
 }
 
 type TaskCategoryMapRow = {
@@ -69,7 +72,7 @@ export function useTaskTree() {
 
       const { data: tasks, error: taskError } = await supabase
         .from("tasks")
-        .select("id, name, description")
+        .select("id, name, description, lineage_id, version, is_latest")
         .order("name")
 
       if (taskError) {

@@ -558,6 +558,81 @@ select:focus {
   user-select: none;
 }
 
+.tree-icon-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--badge-bg, rgba(10, 132, 255, 0.10));
+  color: var(--badge-fg, rgba(10, 132, 255, 0.95));
+  border: 1px solid var(--badge-border, rgba(10, 132, 255, 0.14));
+}
+
+.tree-icon-badge--solid {
+  background: var(--badge-bg-strong, rgba(10, 132, 255, 0.16));
+  border-color: var(--badge-border-strong, rgba(10, 132, 255, 0.22));
+}
+
+/* Palette variants (deterministic per category/group) */
+.tree-icon-badge--blue {
+  --badge-bg: rgba(10, 132, 255, 0.10);
+  --badge-bg-strong: rgba(10, 132, 255, 0.16);
+  --badge-fg: rgba(10, 132, 255, 0.95);
+  --badge-border: rgba(10, 132, 255, 0.14);
+  --badge-border-strong: rgba(10, 132, 255, 0.22);
+}
+
+.tree-icon-badge--teal {
+  --badge-bg: rgba(34, 199, 184, 0.12);
+  --badge-bg-strong: rgba(34, 199, 184, 0.18);
+  --badge-fg: rgba(10, 140, 130, 1);
+  --badge-border: rgba(34, 199, 184, 0.18);
+  --badge-border-strong: rgba(34, 199, 184, 0.26);
+}
+
+.tree-icon-badge--orange {
+  --badge-bg: rgba(255, 159, 10, 0.14);
+  --badge-bg-strong: rgba(255, 159, 10, 0.20);
+  --badge-fg: rgba(170, 88, 0, 1);
+  --badge-border: rgba(255, 159, 10, 0.22);
+  --badge-border-strong: rgba(255, 159, 10, 0.30);
+}
+
+.tree-icon-badge--purple {
+  --badge-bg: rgba(175, 82, 222, 0.14);
+  --badge-bg-strong: rgba(175, 82, 222, 0.20);
+  --badge-fg: rgba(122, 46, 165, 1);
+  --badge-border: rgba(175, 82, 222, 0.22);
+  --badge-border-strong: rgba(175, 82, 222, 0.30);
+}
+
+.tree-icon-badge--indigo {
+  --badge-bg: rgba(88, 86, 214, 0.14);
+  --badge-bg-strong: rgba(88, 86, 214, 0.20);
+  --badge-fg: rgba(56, 54, 168, 1);
+  --badge-border: rgba(88, 86, 214, 0.22);
+  --badge-border-strong: rgba(88, 86, 214, 0.30);
+}
+
+.tree-icon-badge--red {
+  --badge-bg: rgba(255, 59, 48, 0.12);
+  --badge-bg-strong: rgba(255, 59, 48, 0.18);
+  --badge-fg: rgba(180, 20, 12, 1);
+  --badge-border: rgba(255, 59, 48, 0.18);
+  --badge-border-strong: rgba(255, 59, 48, 0.26);
+}
+
+.tree-icon-badge--gray {
+  --badge-bg: rgba(110, 110, 115, 0.10);
+  --badge-bg-strong: rgba(110, 110, 115, 0.16);
+  --badge-fg: rgba(60, 60, 67, 0.85);
+  --badge-border: rgba(110, 110, 115, 0.14);
+  --badge-border-strong: rgba(110, 110, 115, 0.22);
+}
+
 /* Actions */
 
 .tree-actions {
