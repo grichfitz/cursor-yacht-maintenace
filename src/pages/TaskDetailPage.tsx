@@ -298,31 +298,17 @@ export default function TaskDetailPage() {
         }}
       >
         <button
+          type="button"
           onClick={() => navigate(-1)}
-          style={{
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            color: "var(--text-primary)",
-          }}
+          className="primary-button"
         >
           ← Back
-        </button>
-
-        <button
-          onClick={() => navigate("/desktop")}
-          style={{
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            color: "var(--text-primary)",
-          }}
-        >
-          Home
         </button>
       </div>
 
       <hr />
+
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>Task Editor</div>
 
       {/* Name */}
       <label>Name:</label>
@@ -383,33 +369,26 @@ export default function TaskDetailPage() {
         </div>
       )}
 
-      {/* Save */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-          <input
-            type="checkbox"
-            checked={applyGlobally}
-            disabled={!inUse}
-            onChange={(e) => setApplyGlobally(e.target.checked)}
-            onClick={(e) => e.stopPropagation()}
-          />
-          Apply globally
-        </label>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 10 }}>
+        <input
+          type="checkbox"
+          checked={applyGlobally}
+          disabled={!inUse}
+          onChange={(e) => setApplyGlobally(e.target.checked)}
+          onClick={(e) => e.stopPropagation()}
+        />
+        Apply globally
+      </label>
 
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          style={{
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            color: "var(--text-primary)",
-            padding: 0,
-          }}
-        >
-          {saving ? "Saving…" : "Save"}
-        </button>
-      </div>
+      <button
+        type="button"
+        className="cta-button"
+        onClick={handleSave}
+        disabled={saving}
+        style={{ opacity: saving ? 0.6 : 1 }}
+      >
+        {saving ? "Saving…" : "Save"}
+      </button>
 
       <hr />
 

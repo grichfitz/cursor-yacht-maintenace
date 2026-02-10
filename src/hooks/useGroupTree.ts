@@ -17,14 +17,29 @@ export function useGroupTree() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    let cancelled = false
+
     const load = async () => {
       setLoading(true)
       setError(null)
+
+      // Only admins should see the Archive virtual group.
+      let isAdmin = false
+      try {
+        const { data: rpcData, error: rpcErr } = await supabase.rpc("is_admin")
+        if (!rpcErr && typeof rpcData === "boolean") {
+          isAdmin = rpcData
+        }
+      } catch {
+        isAdmin = false
+      }
 
       const { data, error } = await supabase
         .from("groups")
         .select("id, name, parent_group_id, is_archived")
         .order("name")
+
+      if (cancelled) return
 
       if (error) {
         setError(error.message)
@@ -49,7 +64,7 @@ export function useGroupTree() {
       }
 
       // Virtual Archive root (bottom), same pattern as categories
-      if (archived.length) {
+      if (isAdmin && archived.length) {
         active.push({
           id: ARCHIVE_ID,
           label: "Archive",
@@ -67,6 +82,20 @@ export function useGroupTree() {
     }
 
     load()
+
+    // Refresh when the app regains focus (helps reflect recent edits like "Move Group").
+    const onFocus = () => load()
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") load()
+    }
+    window.addEventListener("focus", onFocus)
+    document.addEventListener("visibilitychange", onVisibility)
+
+    return () => {
+      cancelled = true
+      window.removeEventListener("focus", onFocus)
+      document.removeEventListener("visibilitychange", onVisibility)
+    }
   }, [])
 
   return {

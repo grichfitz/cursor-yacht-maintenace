@@ -11,27 +11,91 @@ export default function CategoryEditorPage() {
   const navigate = useNavigate();
   const { categoryId } = useParams<{ categoryId: string }>();
   const { nodes } = useCategoryTree();
+  const isVirtualCategory = !!categoryId?.startsWith("__")
 
   const [name, setName] = useState("");
   const [isArchived, setIsArchived] = useState(false);
   const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   /* ---------- Load category ---------- */
 
   useEffect(() => {
     if (!categoryId) return;
+    if (categoryId.startsWith("__")) {
+      setLoading(false)
+      setIsAdmin(false)
+      return
+    }
 
-    supabase
-      .from("task_categories")
-      .select("name,is_archived,parent_id")
-      .eq("id", categoryId)
-      .single()
-      .then(({ data }) => {
-        if (!data) return;
-        setName(data.name);
-        setIsArchived(!!data.is_archived);
-        setSelectedParentId(data.parent_id ?? ROOT_ID);
-      });
+    let cancelled = false
+
+    const load = async () => {
+      setLoading(true)
+      setError(null)
+
+      // Determine admin status (for archive/unarchive).
+      try {
+        const { data: rpcData, error: rpcErr } = await supabase.rpc("is_admin")
+        if (!rpcErr && typeof rpcData === "boolean") {
+          if (!cancelled) setIsAdmin(rpcData)
+        } else {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser()
+
+          if (user) {
+            const { data: rolesData, error: rolesError } = await supabase
+              .from("user_role_links")
+              .select("roles(name)")
+              .eq("user_id", user.id)
+
+            if (!rolesError) {
+              const admin =
+                (rolesData as any[])?.some(
+                  (r: any) => r?.roles?.name?.toLowerCase() === "admin"
+                ) ?? false
+              if (!cancelled) setIsAdmin(admin)
+            }
+          }
+        }
+      } catch {
+        if (!cancelled) setIsAdmin(false)
+      }
+
+      const { data, error: loadErr } = await supabase
+        .from("task_categories")
+        .select("name,is_archived,parent_id")
+        .eq("id", categoryId)
+        .single()
+
+      if (cancelled) return
+
+      if (loadErr) {
+        setError(loadErr.message)
+        setLoading(false)
+        return
+      }
+
+      if (!data) {
+        setError("Category not found.")
+        setLoading(false)
+        return
+      }
+
+      setName((data as any)?.name ?? "")
+      setIsArchived(!!(data as any)?.is_archived)
+      setSelectedParentId((data as any)?.parent_id ?? ROOT_ID)
+      setLoading(false)
+    }
+
+    load()
+    return () => {
+      cancelled = true
+    }
   }, [categoryId]);
 
   /* ---------- Circular move prevention ---------- */
@@ -60,31 +124,120 @@ export default function CategoryEditorPage() {
 
   const save = async () => {
     if (!categoryId) return;
+    setError(null)
+
+    if (isArchived) {
+      setError("This category is archived. Unarchive it before editing.")
+      return
+    }
+
+    if (!name.trim()) {
+      setError("Category name is required.")
+      return
+    }
 
     const parentToSave =
-      selectedParentId === ROOT_ID ? null : selectedParentId;
+      selectedParentId === ROOT_ID || (selectedParentId?.startsWith("__") ?? false)
+        ? null
+        : selectedParentId;
 
-    await supabase
+    setSaving(true)
+
+    const { data: updated, error: updateErr } = await supabase
       .from("task_categories")
       .update({
-        name,
+        name: name.trim(),
         parent_id: parentToSave,
       })
-      .eq("id", categoryId);
+      .eq("id", categoryId)
+      .select("id")
+      .maybeSingle();
 
+    if (updateErr) {
+      setError(updateErr.message)
+      setSaving(false)
+      return
+    }
+
+    if (!updated?.id) {
+      setError("Save failed (no rows updated). This is usually RLS blocking the update.")
+      setSaving(false)
+      return
+    }
+
+    setSaving(false)
     navigate(-1);
   };
 
-  const toggleArchive = async () => {
-    if (!categoryId) return;
+  const unarchiveToTopLevel = async () => {
+    if (!categoryId) return
+    setError(null)
 
-    await supabase
+    if (!isAdmin) {
+      setError("Only administrators can un-archive categories.")
+      return
+    }
+
+    setSaving(true)
+
+    const { data: updated, error: updateErr } = await supabase
       .from("task_categories")
-      .update({ is_archived: !isArchived })
-      .eq("id", categoryId);
+      .update({ is_archived: false, parent_id: null })
+      .eq("id", categoryId)
+      .select("id,name,is_archived,parent_id")
+      .maybeSingle()
 
-    navigate(-1);
-  };
+    if (updateErr) {
+      setError(updateErr.message)
+      setSaving(false)
+      return
+    }
+
+    if (!updated?.id) {
+      setError("Unarchive failed (no rows updated). This is usually RLS blocking the update.")
+      setSaving(false)
+      return
+    }
+
+    setIsArchived(false)
+    setSelectedParentId(ROOT_ID)
+    setName((updated as any)?.name ?? name)
+    setSaving(false)
+  }
+
+  const archive = async () => {
+    if (!categoryId) return
+    setError(null)
+
+    if (!isAdmin) {
+      setError("Only administrators can archive categories.")
+      return
+    }
+
+    setSaving(true)
+
+    const { data: updated, error: updateErr } = await supabase
+      .from("task_categories")
+      .update({ is_archived: true })
+      .eq("id", categoryId)
+      .select("id,is_archived")
+      .maybeSingle()
+
+    if (updateErr) {
+      setError(updateErr.message)
+      setSaving(false)
+      return
+    }
+
+    if (!updated?.id) {
+      setError("Archive failed (no rows updated). This is usually RLS blocking the update.")
+      setSaving(false)
+      return
+    }
+
+    setIsArchived(true)
+    setSaving(false)
+  }
 
   /* ---------- Virtual Top Level ---------- */
 
@@ -99,6 +252,8 @@ export default function CategoryEditorPage() {
     ];
   }, [nodes]);
 
+  if (loading) return <div className="screen">Loading…</div>
+
   return (
     <div className="screen">
       {/* Top Bar */}
@@ -111,104 +266,156 @@ export default function CategoryEditorPage() {
         }}
       >
         <button
+          type="button"
           onClick={() => navigate(-1)}
-          style={{
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            color: "var(--text-primary)",
-          }}
+          className="primary-button"
         >
           ← Back
-        </button>
-
-        <button
-          onClick={() => navigate("/desktop")}
-          style={{
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            color: "var(--text-primary)",
-          }}
-        >
-          Home
         </button>
       </div>
 
       <hr />
 
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>Category Editor</div>
+      {categoryId?.startsWith("__") ? (
+        <div
+          style={{
+            padding: 12,
+            background: "rgba(255, 193, 7, 0.1)",
+            border: "1px solid rgba(255, 193, 7, 0.3)",
+            borderRadius: 8,
+            fontSize: 13,
+            color: "var(--text-primary)",
+          }}
+        >
+          <strong>Note:</strong> This is a virtual category and cannot be edited.
+        </div>
+      ) : null}
+
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>
+        Category Editor{name ? ` — ${name}` : ""}
+      </div>
+
+      {error && (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: 12,
+            background: "rgba(255, 0, 0, 0.08)",
+            border: "1px solid rgba(255, 0, 0, 0.2)",
+            borderRadius: 8,
+            fontSize: 13,
+            color: "var(--text-primary)",
+          }}
+        >
+          <strong>Error:</strong> {error}
+        </div>
+      )}
 
       <label>Name:</label>
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}
-        style={{ marginBottom: 12 }}
+        disabled={isVirtualCategory || saving || isArchived}
+        readOnly={isArchived}
+        {...(isArchived
+          ? {
+              style: {
+                marginBottom: 12,
+                background: "var(--border-subtle)",
+                color: "var(--text-secondary)",
+                cursor: "not-allowed",
+              },
+            }
+          : { style: { marginBottom: 12 } })}
       />
 
-      <hr />
-
-      <div style={{ marginBottom: 8, fontWeight: 500 }}>Move Category</div>
-
-      <div style={{ maxHeight: "40vh", overflowY: "auto", marginBottom: 12 }}>
-        <TreeDisplay
-          nodes={treeWithRoot}
-          renderActions={(node) => {
-            const disabled = forbiddenTargets.has(node.id);
-
-            return (
-              <input
-                type="radio"
-                disabled={disabled}
-                checked={selectedParentId === node.id}
-                onChange={() => setSelectedParentId(node.id)}
-                style={{ transform: "scale(1.2)" }}
-              />
-            );
-          }}
-        />
-      </div>
-
-      {/* Save Button */}
-
-      <div style={{ marginTop: 20 }}>
+      {/* Archived category: read-only details + single Unarchive */}
+      {!isVirtualCategory && isArchived ? (
         <button
+          type="button"
+          className="cta-button"
+          onClick={unarchiveToTopLevel}
+          disabled={saving}
+          style={{ opacity: saving ? 0.6 : 1, marginBottom: 12 }}
+        >
+          {saving ? "Unarchiving…" : "Unarchive"}
+        </button>
+      ) : null}
+
+      {!isVirtualCategory && !isArchived ? (
+        <button
+          type="button"
+          className="cta-button"
           onClick={save}
-          style={{
-            width: "100%",
-            padding: "10px",
-            borderRadius: 8,
-            border: "1px solid var(--border-subtle)",
-            background: "transparent",
-            fontWeight: 600,
-            cursor: "pointer",
-            color: "var(--text-primary)",
-          }}
+          disabled={saving}
+          style={{ opacity: saving ? 0.6 : 1, marginBottom: 12 }}
         >
-          Save
+          {saving ? "Saving…" : "Save"}
         </button>
+      ) : null}
 
-      <hr />
+      {!isVirtualCategory && !isArchived ? (
+        <>
+          <hr />
 
-      <div style={{ marginBottom: 20 }}>
-        <button
-          onClick={toggleArchive}
-          style={{
-            background: "var(--border-subtle)",
-            border: "none",
-            borderRadius: 8,
-            padding: "6px 10px",
-            fontSize: 13,
-            fontWeight: 500,
-            color: "var(--text-primary)",
-            cursor: "pointer",
-          }}
-        >
-          {isArchived ? "Un-archive Category" : "Archive Category"}
-        </button>
-      </div>
+          <div style={{ marginBottom: 8, fontWeight: 500 }}>Move Category</div>
 
-      </div>
+          <div style={{ maxHeight: "40vh", overflowY: "auto", marginBottom: 12 }}>
+            <TreeDisplay
+              nodes={treeWithRoot}
+              renderActions={(node) => {
+                const isVirtual = node.id.startsWith("__") && node.id !== ROOT_ID
+                const disabled = forbiddenTargets.has(node.id) || isVirtual
+
+                return (
+                  <input
+                    type="radio"
+                    disabled={disabled || saving}
+                    checked={selectedParentId === node.id}
+                    onChange={() => setSelectedParentId(node.id)}
+                    style={{ transform: "scale(1.2)" }}
+                  />
+                )
+              }}
+            />
+          </div>
+
+          <button
+            type="button"
+            className="cta-button"
+            onClick={save}
+            disabled={saving}
+            style={{ opacity: saving ? 0.6 : 1, marginBottom: 12 }}
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
+
+          <hr />
+
+          {isAdmin ? (
+            <div style={{ marginBottom: 20 }}>
+              <button
+                type="button"
+                onClick={archive}
+                disabled={saving}
+                style={{
+                  background: "var(--border-subtle)",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "6px 10px",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: "var(--text-primary)",
+                  cursor: "pointer",
+                  opacity: saving ? 0.6 : 1,
+                }}
+              >
+                Archive Category
+              </button>
+            </div>
+          ) : null}
+        </>
+      ) : null}
     </div>
   );
 }

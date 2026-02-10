@@ -78,27 +78,11 @@ export default function NewGroupPage() {
         }}
       >
         <button
+          type="button"
           onClick={() => navigate(-1)}
-          style={{
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            color: "var(--text-primary)",
-          }}
+          className="primary-button"
         >
           ← Back
-        </button>
-
-        <button
-          onClick={() => navigate("/desktop")}
-          style={{
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            color: "var(--text-primary)",
-          }}
-        >
-          Home
         </button>
       </div>
 

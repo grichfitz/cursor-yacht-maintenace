@@ -2,24 +2,22 @@ import React from "react"
 import { useNavigate } from "react-router-dom"
 import TreeDisplay from "../components/TreeDisplay"
 import type { TreeNode } from "../components/TreeDisplay"
-import { useUserGroupTree } from "../hooks/useUserGroupTree"
-import { Folder, User } from "lucide-react"
+import { useGroupTree } from "../hooks/useGroupTree"
+import { Folder } from "lucide-react"
 import { pickBadgeVariant } from "../ui/badgeColors"
 import { useIsAdmin } from "../hooks/useIsAdmin"
 
-export default function UsersApp() {
+export default function GroupsApp() {
   const navigate = useNavigate()
   const { isAdmin, loading: adminLoading } = useIsAdmin()
-  const { nodes, loading } = useUserGroupTree()
+  const { nodes, loading, error } = useGroupTree()
 
-  if (loading || adminLoading) {
-    return <div className="screen">Loading…</div>
-  }
+  if (loading || adminLoading) return <div className="screen">Loading…</div>
 
   if (!isAdmin) {
     return (
       <div className="screen">
-        <div className="screen-title">Users</div>
+        <div className="screen-title">Groups</div>
         <div style={{ opacity: 0.75, fontSize: 13 }}>
           This area is restricted to administrators.
         </div>
@@ -29,7 +27,12 @@ export default function UsersApp() {
 
   return (
     <div className="screen" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div className="screen-title">Users</div>
+      <div className="screen-title">Groups</div>
+      {error ? (
+        <div style={{ color: "var(--accent-red)", fontSize: 13, marginBottom: 10 }}>
+          {error}
+        </div>
+      ) : null}
 
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 8 }}>
         <TreeDisplay
@@ -45,31 +48,14 @@ export default function UsersApp() {
                 </span>
               )
             }
-            if (node.nodeType === "user") {
-              const variant = pickBadgeVariant(node.parentId ?? node.id)
-              return (
-                <span className={`tree-icon-badge tree-icon-badge--${variant} tree-icon-badge--solid`}>
-                  <User size={16} />
-                </span>
-              )
-            }
             return null
           }}
           onSelect={(node) => {
-            if (node.nodeType === "user") {
-              navigate(`/apps/users/${node.id}`)
-            }
+            if (node.id.startsWith("__")) return
+            navigate(`/groups/${node.id}`)
           }}
         />
       </div>
-
-      <button
-        type="button"
-        className="cta-button"
-        onClick={() => navigate("/apps/users/new")}
-      >
-        + Add User
-      </button>
     </div>
   )
 }

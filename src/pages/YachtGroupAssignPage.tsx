@@ -1,14 +1,40 @@
 import { useNavigate, useParams } from "react-router-dom"
 import GenericTreeAssignPage from "./GenericTreeAssignPage"
 import { useGroupTree } from "../hooks/useGroupTree"
-import React from "react";
+import { supabase } from "../lib/supabase"
+import React, { useEffect, useState } from "react";
 
 export default function YachtGroupAssignPage() {
   const navigate = useNavigate()
   const { yachtId } = useParams<{ yachtId: string }>()
   const { nodes } = useGroupTree()
+  const [yachtName, setYachtName] = useState<string>("")
 
   if (!yachtId) return null
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      const { data, error } = await supabase
+        .from("yachts")
+        .select("name")
+        .eq("id", yachtId)
+        .maybeSingle()
+
+      if (!cancelled) {
+        if (error) {
+          setYachtName("")
+        } else {
+          setYachtName((data as any)?.name ?? "")
+        }
+      }
+    }
+
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [yachtId])
 
   return (
     <div
@@ -17,27 +43,19 @@ export default function YachtGroupAssignPage() {
     >
 
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
-        <div
+        <button
+          type="button"
           className="primary-button"
           onClick={() => navigate(-1)}
-          style={{ cursor: "pointer" }}
         >
           ← Back
-        </div>
-
-        <div
-          className="primary-button"
-          onClick={() => navigate("/desktop")}
-          style={{ cursor: "pointer" }}
-        >
-          Home
-        </div>
+        </button>
       </div>
 
       <hr />
 
       <div style={{ fontWeight: 600, marginBottom: 8 }}>
-        Assigned Groups
+        Assigned Groups{yachtName ? ` for ${yachtName}` : ""}
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 8 }}>

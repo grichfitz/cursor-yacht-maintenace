@@ -10,6 +10,8 @@ export default function YachtDetailPage() {
   const [name, setName] = useState("")
   const [makeModel, setMakeModel] = useState("")
   const [location, setLocation] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
@@ -31,8 +33,10 @@ export default function YachtDetailPage() {
 
   const save = async () => {
     if (!id) return
+    setSaveError(null)
+    setSaving(true)
 
-    await supabase
+    const { error } = await supabase
       .from("yachts")
       .update({
         name,
@@ -41,6 +45,13 @@ export default function YachtDetailPage() {
       })
       .eq("id", id)
 
+    if (error) {
+      setSaveError(error.message)
+      setSaving(false)
+      return
+    }
+
+    setSaving(false)
     navigate(-1)
   }
 
@@ -142,28 +153,11 @@ export default function YachtDetailPage() {
         }}
       >
         <button
+          type="button"
           onClick={() => navigate(-1)}
-          style={{
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            color: "var(--text-primary)",
-          }}
+          className="primary-button"
         >
           ← Back
-        </button>
-
-        <button
-          onClick={save}
-          style={{
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            fontWeight: 600,
-            color: "var(--text-primary)",
-          }}
-        >
-          Save
         </button>
       </div>
 
@@ -191,6 +185,22 @@ export default function YachtDetailPage() {
         onChange={(e) => setLocation(e.target.value)}
         style={{ marginBottom: 12 }}
       />
+
+      {saveError && (
+        <div style={{ color: "var(--accent-red)", marginBottom: 10, fontSize: 13 }}>
+          {saveError}
+        </div>
+      )}
+
+      <button
+        type="button"
+        className="cta-button"
+        onClick={save}
+        disabled={saving}
+        style={{ opacity: saving ? 0.6 : 1 }}
+      >
+        {saving ? "Saving…" : "Save"}
+      </button>
 
       <hr />
 

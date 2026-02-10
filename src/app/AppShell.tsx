@@ -3,7 +3,7 @@
 import React from "react";
 import type { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Home, Ship, CheckSquare, MoreHorizontal, Search, Zap } from "lucide-react";
+import { Home, Ship, CheckSquare, User, Search, Zap } from "lucide-react";
 import "../App.css";
 
 type AppShellProps = {
@@ -23,11 +23,20 @@ export default function AppShell({
   const navigate = useNavigate();
 
   const pathname = location.pathname;
-  const activeTab: "dashboard" | "boats" | "tasks" | "more" =
-    pathname.startsWith("/apps/yachts") ? "boats"
+  // Only highlight tabs for the primary app areas.
+  // For "editor" / assignment screens (e.g. /groups/*, /categories/*, /yachts/*),
+  // we leave all tabs un-highlighted (neutral grey).
+  const activeTab:
+    | "dashboard"
+    | "yachts"
+    | "tasks"
+    | "profile"
+    | null =
+    pathname === "/" || pathname.startsWith("/desktop") ? "dashboard"
+    : pathname.startsWith("/apps/yachts") ? "yachts"
     : pathname.startsWith("/apps/tasks") ? "tasks"
-    : pathname.startsWith("/more") ? "more"
-    : "dashboard";
+    : pathname.startsWith("/profile") || pathname.startsWith("/more") ? "profile"
+    : null;
 
   return (
     <div className="app">
@@ -69,11 +78,11 @@ export default function AppShell({
 
           <button
             type="button"
-            className={`tabbar-item ${activeTab === "boats" ? "active" : ""}`}
+            className={`tabbar-item ${activeTab === "yachts" ? "active" : ""}`}
             onClick={() => navigate("/apps/yachts")}
           >
             <Ship size={20} />
-            <span>Boats</span>
+            <span>Yachts</span>
           </button>
 
           <button
@@ -87,11 +96,11 @@ export default function AppShell({
 
           <button
             type="button"
-            className={`tabbar-item ${activeTab === "more" ? "active" : ""}`}
-            onClick={() => navigate("/more")}
+            className={`tabbar-item ${activeTab === "profile" ? "active" : ""}`}
+            onClick={() => navigate("/profile")}
           >
-            <MoreHorizontal size={20} />
-            <span>More</span>
+            <User size={20} />
+            <span>Profile</span>
           </button>
         </nav>
       )}

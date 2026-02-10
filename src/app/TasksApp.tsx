@@ -8,7 +8,7 @@ import { pickBadgeVariant } from "../ui/badgeColors"
 
 export default function TasksApp() {
   const navigate = useNavigate()
-  const { nodes, loading } = useTaskTree()
+  const { nodes, loading, error } = useTaskTree()
   const rootIds = (nodes as TreeNode[]).filter((n) => n.parentId === null).map((n) => n.id)
   const visibleNodes = (nodes as TreeNode[]).filter((n) => {
     if (n.nodeType !== "task") return true
@@ -23,7 +23,30 @@ export default function TasksApp() {
     <div className="screen" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div className="screen-title">Tasks</div>
 
+      {error && (
+        <div
+          style={{
+            background: "rgba(255,0,0,0.08)",
+            border: "1px solid rgba(255,0,0,0.2)",
+            color: "var(--text-primary)",
+            padding: "8px 10px",
+            borderRadius: 10,
+            marginBottom: 10,
+            fontSize: 13,
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>Task load warning</div>
+          <div style={{ opacity: 0.9 }}>{error}</div>
+        </div>
+      )}
+
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 8 }}>
+        {visibleNodes.length === 0 ||
+        (visibleNodes.length > 0 && visibleNodes.every((n) => n.parentId !== null)) ? (
+          <div style={{ opacity: 0.75, fontSize: 13, padding: "8px 2px" }}>
+            No tasks visible for this account.
+          </div>
+        ) : null}
         <TreeDisplay
           nodes={visibleNodes as TreeNode[]}
           defaultExpandedIds={[]}

@@ -5,7 +5,7 @@ import type { TreeNode } from "../components/TreeDisplay"
 /* ---------- Constants ---------- */
 
 const UNCATEGORISED_TASKS_NAME = "Uncategorised Tasks"
-const LEGACY_UNCATEGORISED_NAME = "Uncategorised"
+const UNASSIGNED_CATEGORY_ID = "__uncategorised_tasks__"
 
 /* ---------- DB Row Types ---------- */
 
@@ -39,6 +39,8 @@ export function useTaskTree() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    let cancelled = false
+
     const load = async () => {
       setLoading(true)
       setError(null)
@@ -49,6 +51,8 @@ export function useTaskTree() {
         .from("task_categories")
         .select("id, name, parent_id, group_id, is_archived")
         .order("name")
+
+      if (cancelled) return
 
       if (categoryError) {
         setError(categoryError.message)
@@ -61,6 +65,8 @@ export function useTaskTree() {
       const { data: links, error: linkError } = await supabase
         .from("task_category_map")
         .select("task_id, category_id")
+
+      if (cancelled) return
 
       if (linkError) {
         setError(linkError.message)
@@ -75,6 +81,8 @@ export function useTaskTree() {
         .select("id, name, description, lineage_id, version, is_latest")
         .order("name")
 
+      if (cancelled) return
+
       if (taskError) {
         setError(taskError.message)
         setLoading(false)
@@ -82,7 +90,7 @@ export function useTaskTree() {
       }
 
       const categoriesData = (categories as TaskCategoryRow[]) ?? []
-      let linksData = ((links as TaskCategoryMapRow[]) ?? []).slice()
+      const linksData = ((links as TaskCategoryMapRow[]) ?? []).slice()
 
       /* ---------- 4. Build lookup maps ---------- */
 
@@ -96,107 +104,15 @@ export function useTaskTree() {
         categoryMap.set(c.id, c)
       })
 
-      /* ---------- 5. Assigned vs unassigned tasks ---------- */
+      /* ---------- 5. Assigned vs unassigned tasks (READ-ONLY) ---------- */
 
       const assignedTaskIds = new Set(
         linksData.map((l) => l.task_id)
       )
 
-      let unassignedTasks = (tasks as TaskRow[]).filter(
+      const unassignedTasks = (tasks as TaskRow[]).filter(
         (t) => !assignedTaskIds.has(t.id)
       )
-
-      /* ---------- 5.5 Ensure a single Uncategorised Tasks category ---------- */
-
-      const ensureUncategorisedTasksCategory = async (): Promise<string> => {
-        const preferred = categoriesData.find(
-          (c) => !c.is_archived && c.name === UNCATEGORISED_TASKS_NAME
-        )
-        if (preferred) return preferred.id
-
-        const legacy = categoriesData.find(
-          (c) => !c.is_archived && c.name === LEGACY_UNCATEGORISED_NAME
-        )
-
-        // If we have the legacy category, try to rename it (avoid duplicates).
-        if (legacy) {
-          const { error: renameErr } = await supabase
-            .from("task_categories")
-            .update({ name: UNCATEGORISED_TASKS_NAME })
-            .eq("id", legacy.id)
-
-          // Even if the rename fails (e.g. uniqueness conflict), we can still use it as the bucket.
-          if (!renameErr) {
-            legacy.name = UNCATEGORISED_TASKS_NAME
-          }
-
-          return legacy.id
-        }
-
-        // Need a group_id (schema: task_categories.group_id NOT NULL).
-        let groupId = categoriesData[0]?.group_id
-        if (!groupId) {
-          const { data: groups, error: grpErr } = await supabase
-            .from("groups")
-            .select("id")
-            .order("name")
-            .limit(1)
-
-          if (grpErr) throw new Error(grpErr.message)
-          groupId = (groups as any[])?.[0]?.id as string | undefined
-        }
-
-        if (!groupId) {
-          throw new Error("No groups exist. Create a group before categorising tasks.")
-        }
-
-        const { data: inserted, error: insertErr } = await supabase
-          .from("task_categories")
-          .insert({
-            name: UNCATEGORISED_TASKS_NAME,
-            parent_id: null,
-            is_archived: false,
-            group_id: groupId,
-          })
-          .select("id, name, parent_id, group_id, is_archived")
-          .single()
-
-        if (insertErr) throw new Error(insertErr.message)
-
-        const newRow = inserted as TaskCategoryRow | null
-        if (!newRow?.id) throw new Error("Failed to create Uncategorised Tasks category.")
-
-        categoriesData.push(newRow)
-        categoryMap.set(newRow.id, newRow)
-
-        return newRow.id
-      }
-
-      // If any tasks are unassigned, move them into the Uncategorised Tasks bucket (real DB category).
-      if (unassignedTasks.length > 0) {
-        try {
-          const bucketCategoryId = await ensureUncategorisedTasksCategory()
-
-          const upsertRows: TaskCategoryMapRow[] = unassignedTasks.map((t) => ({
-            task_id: t.id,
-            category_id: bucketCategoryId,
-          }))
-
-          const { error: upsertErr } = await supabase
-            .from("task_category_map")
-            .upsert(upsertRows)
-
-          if (upsertErr) {
-            // Keep tasks visible by leaving them "unassigned" in-memory (but we won't show a virtual node anymore).
-            setError(upsertErr.message)
-          } else {
-            linksData = [...linksData, ...upsertRows]
-            unassignedTasks = []
-          }
-        } catch (e: any) {
-          setError(e?.message || "Failed to categorise unassigned tasks.")
-        }
-      }
 
       /* ---------- 6. Determine relevant categories ---------- */
 
@@ -204,7 +120,13 @@ export function useTaskTree() {
         linksData.map((l) => l.category_id)
       )
 
-      const allRelevantCategoryIds = new Set<string>(usedCategoryIds)
+      // If we have no links (or links are filtered by RLS), still render visible categories
+      // so the Tasks screen isn't blank.
+      const allRelevantCategoryIds = new Set<string>(
+        usedCategoryIds.size > 0
+          ? usedCategoryIds
+          : categoriesData.filter((c) => !c.is_archived).map((c) => c.id)
+      )
 
       usedCategoryIds.forEach((id) => {
         let current = categoryMap.get(id)
@@ -219,17 +141,26 @@ export function useTaskTree() {
       const categoryNodes: TreeNode[] =
         categoriesData
           .filter((c) => allRelevantCategoryIds.has(c.id))
-          .map((c) => ({
-            id: c.id,
-            parentId: c.parent_id,
-            label: c.name,
-            nodeType: "category",
-            meta: c,
-          }))
+          .map((c) => {
+            // If a category's parent isn't included (archived, hidden by RLS, or missing),
+            // promote it to a root node so the tree isn't blank.
+            const parentIncluded =
+              !!c.parent_id && allRelevantCategoryIds.has(c.parent_id)
+
+            return {
+              id: c.id,
+              parentId: parentIncluded ? c.parent_id : null,
+              label: c.name,
+              nodeType: "category",
+              meta: c,
+            }
+          })
 
       /* ---------- 8. Task nodes (assigned) ---------- */
 
-      const taskNodes: TreeNode[] =
+      const renderedCategoryIds = new Set(categoryNodes.map((n) => n.id))
+
+      const taskNodesRaw: TreeNode[] =
         linksData
           .map((l) => {
             const task = taskMap.get(l.task_id)
@@ -245,11 +176,55 @@ export function useTaskTree() {
           })
           .filter(Boolean) as TreeNode[]
 
+      /* ---------- 9. Uncategorised Tasks (virtual, read-only) ---------- */
+
+      const hasRealUncategorisedCategory = categoriesData.some(
+        (c) => !c.is_archived && c.name === UNCATEGORISED_TASKS_NAME
+      )
+
+      // If any linked tasks point to a category that isn't rendered, fall back to the virtual bucket.
+      const orphanedLinkedTaskNodes = taskNodesRaw.filter(
+        (t) => !!t.parentId && !renderedCategoryIds.has(t.parentId)
+      )
+
+      const virtualUncategorisedNode: TreeNode | null =
+        (unassignedTasks.length > 0 || orphanedLinkedTaskNodes.length > 0) && !hasRealUncategorisedCategory
+          ? {
+              id: UNASSIGNED_CATEGORY_ID,
+              parentId: null,
+              label: UNCATEGORISED_TASKS_NAME,
+              nodeType: "category",
+              meta: { isVirtual: true },
+            }
+          : null
+
+      const taskNodes: TreeNode[] =
+        virtualUncategorisedNode
+          ? taskNodesRaw.map((t) =>
+              t.parentId && !renderedCategoryIds.has(t.parentId)
+                ? { ...t, parentId: UNASSIGNED_CATEGORY_ID }
+                : t
+            )
+          : taskNodesRaw
+
+      const unassignedTaskNodes: TreeNode[] =
+        virtualUncategorisedNode
+          ? unassignedTasks.map((t) => ({
+              id: t.id,
+              parentId: UNASSIGNED_CATEGORY_ID,
+              label: t.name,
+              nodeType: "task",
+              meta: t,
+            }))
+          : []
+
       /* ---------- 10. Combine & publish ---------- */
 
       const allNodes: TreeNode[] = [
         ...categoryNodes,
+        ...(virtualUncategorisedNode ? [virtualUncategorisedNode] : []),
         ...taskNodes,
+        ...unassignedTaskNodes,
       ]
 
       setNodes(allNodes)
@@ -257,6 +232,21 @@ export function useTaskTree() {
     }
 
     load()
+
+    const sub = supabase.auth.onAuthStateChange(() => load())
+    const onFocus = () => load()
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") load()
+    }
+    window.addEventListener("focus", onFocus)
+    document.addEventListener("visibilitychange", onVisibility)
+
+    return () => {
+      cancelled = true
+      sub.data.subscription.unsubscribe()
+      window.removeEventListener("focus", onFocus)
+      document.removeEventListener("visibilitychange", onVisibility)
+    }
   }, [])
 
   return {

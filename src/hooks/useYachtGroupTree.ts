@@ -35,9 +35,44 @@ export function useYachtGroupTree() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    let cancelled = false
+
     const load = async () => {
       setLoading(true)
       setError(null)
+
+      /* ---------- 0. Admin check (only admins can see "unassigned") ---------- */
+
+      let isAdmin = false
+      try {
+        // Prefer authoritative helper function if present.
+        const { data: rpcData, error: rpcErr } = await supabase.rpc("is_admin")
+        if (!rpcErr && typeof rpcData === "boolean") {
+          isAdmin = rpcData
+        } else {
+          // Fallback: role link lookup (in case RPC isn't deployed).
+          const {
+            data: { user },
+          } = await supabase.auth.getUser()
+
+          if (user) {
+            const { data: rolesData, error: rolesError } = await supabase
+              .from("user_role_links")
+              .select("roles(name)")
+              .eq("user_id", user.id)
+
+            if (!rolesError) {
+              isAdmin =
+                (rolesData as any[])?.some(
+                  (r: any) => r?.roles?.name?.toLowerCase() === "admin"
+                ) ?? false
+            }
+          }
+        }
+      } catch {
+        // Non-fatal: default to non-admin view
+        isAdmin = false
+      }
 
       /* ---------- 1. Load groups ---------- */
 
@@ -45,6 +80,8 @@ export function useYachtGroupTree() {
         .from("groups")
         .select("id, name, parent_group_id, is_archived")
         .order("name")
+
+      if (cancelled) return
 
       if (groupError) {
         setError(groupError.message)
@@ -58,6 +95,8 @@ export function useYachtGroupTree() {
         .from("yacht_group_links")
         .select("yacht_id, group_id")
 
+      if (cancelled) return
+
       if (linkError) {
         setError(linkError.message)
         setLoading(false)
@@ -70,6 +109,8 @@ export function useYachtGroupTree() {
         .from("yachts")
         .select("id, name, make_model, location")
         .order("name")
+
+      if (cancelled) return
 
       if (yachtError) {
         setError(yachtError.message)
@@ -94,18 +135,48 @@ export function useYachtGroupTree() {
         yachtMap.set(y.id, y)
       })
 
-      /* ---------- 5. Group nodes ---------- */
+      /* ---------- 5. Only show groups that contain yachts ---------- */
+
+      const groupById = new Map<string, GroupRow>()
+      activeGroups.forEach((g) => groupById.set(g.id, g))
+
+      const groupIdsWithYachts = new Set<string>(activeLinks.map((l) => l.group_id))
+
+      // Include ancestors so nested divisions still appear.
+      const relevantGroupIds = new Set<string>(groupIdsWithYachts)
+      for (const gid of groupIdsWithYachts) {
+        let current = groupById.get(gid)
+        while (current?.parent_group_id) {
+          relevantGroupIds.add(current.parent_group_id)
+          current = groupById.get(current.parent_group_id)
+        }
+      }
+
+      // For admins, show the full visible group tree even if empty (helps manage ownership).
+      const relevantGroups = isAdmin
+        ? activeGroups
+        : activeGroups.filter((g) => relevantGroupIds.has(g.id))
+      const relevantGroupIdSet = new Set(relevantGroups.map((g) => g.id))
+
+      /* ---------- 6. Group nodes ---------- */
 
       const groupNodes: TreeNode[] =
-        activeGroups.map((g) => ({
-          id: g.id,
-          parentId: g.parent_group_id,
-          label: g.name,
-          nodeType: "group",
-          meta: g,
-        }))
+        relevantGroups.map((g) => {
+          // If the parent group isn't visible/relevant for this user,
+          // promote this group to a root node to avoid a blank tree.
+          const parentVisible =
+            !!g.parent_group_id && relevantGroupIdSet.has(g.parent_group_id)
 
-      /* ---------- 6. Yacht nodes (assigned) ---------- */
+          return {
+            id: g.id,
+            parentId: parentVisible ? g.parent_group_id : null,
+            label: g.name,
+            nodeType: "group",
+            meta: g,
+          }
+        })
+
+      /* ---------- 7. Yacht nodes (assigned) ---------- */
 
       const yachtNodes: TreeNode[] =
         activeLinks
@@ -123,18 +194,19 @@ export function useYachtGroupTree() {
           })
           .filter(Boolean) as TreeNode[]
 
-      /* ---------- 7. Unassigned yachts ---------- */
+      /* ---------- 8. Unassigned yachts ---------- */
 
-      const unassignedYachts: TreeNode[] =
-        (yachts as YachtRow[])
-          .filter((y) => !assignedYachtIds.has(y.id))
-          .map((y) => ({
-            id: y.id,
-            parentId: UNASSIGNED_GROUP_ID,
-            label: y.name,
-            nodeType: "yacht",
-            meta: y,
-          }))
+      const unassignedYachts: TreeNode[] = isAdmin
+        ? (yachts as YachtRow[])
+            .filter((y) => !assignedYachtIds.has(y.id))
+            .map((y) => ({
+              id: y.id,
+              parentId: UNASSIGNED_GROUP_ID,
+              label: y.name,
+              nodeType: "yacht",
+              meta: y,
+            }))
+        : []
 
       const unassignedGroupNode: TreeNode | null =
         unassignedYachts.length > 0
@@ -147,7 +219,7 @@ export function useYachtGroupTree() {
             }
           : null
 
-      /* ---------- 8. Combine & publish ---------- */
+      /* ---------- 9. Combine & publish ---------- */
 
       const allNodes: TreeNode[] = [
         ...groupNodes,
@@ -156,11 +228,29 @@ export function useYachtGroupTree() {
         ...unassignedYachts,
       ]
 
-      setNodes(allNodes)
-      setLoading(false)
+      if (!cancelled) {
+        setNodes(allNodes)
+        setLoading(false)
+      }
     }
 
     load()
+
+    // Reload whenever auth changes (switching personas) and when focus returns.
+    const sub = supabase.auth.onAuthStateChange(() => load())
+    const onFocus = () => load()
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") load()
+    }
+    window.addEventListener("focus", onFocus)
+    document.addEventListener("visibilitychange", onVisibility)
+
+    return () => {
+      cancelled = true
+      sub.data.subscription.unsubscribe()
+      window.removeEventListener("focus", onFocus)
+      document.removeEventListener("visibilitychange", onVisibility)
+    }
   }, [])
 
   return {

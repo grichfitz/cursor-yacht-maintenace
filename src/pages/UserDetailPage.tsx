@@ -145,33 +145,19 @@ export default function UserDetailPage() {
         }}
       >
         <button
+          type="button"
           onClick={() => navigate(-1)}
-          style={{
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            color: "var(--text-primary)",
-          }}
+          className="primary-button"
         >
           ← Back
-        </button>
-
-        <button
-          onClick={() => navigate("/desktop")}
-          style={{
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            color: "var(--text-primary)",
-          }}
-        >
-          Home
         </button>
       </div>
 
       <hr />
 
-      <div style={{ fontWeight: 600, marginBottom: 8 }}>User Editor</div>
+      <div style={{ fontWeight: 600, marginBottom: 8 }}>
+        User Editor{(displayName || email) ? ` — ${displayName || email}` : ""}
+      </div>
 
       <label>Display name:</label>
       <input
@@ -181,27 +167,28 @@ export default function UserDetailPage() {
       />
 
       <label>Email (read-only):</label>
-      <input value={email} readOnly style={{ marginBottom: 12 }} />
+      <input
+        value={email}
+        readOnly
+        style={{
+          marginBottom: 12,
+          background: "var(--border-subtle)",
+          color: "var(--text-secondary)",
+          cursor: "not-allowed",
+        }}
+      />
 
       <hr />
 
-      {/* Save */}
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
-        <button
-          onClick={save}
-          disabled={saving}
-          style={{
-            background: "transparent",
-            border: "none",
-            cursor: saving ? "default" : "pointer",
-            fontWeight: 600,
-            color: "var(--text-primary)",
-            padding: 0,
-          }}
-        >
-          {saving ? "Saving…" : "Save"}
-        </button>
-      </div>
+      <button
+        type="button"
+        className="cta-button"
+        onClick={save}
+        disabled={saving}
+        style={{ opacity: saving ? 0.6 : 1, marginBottom: 8 }}
+      >
+        {saving ? "Saving…" : "Save"}
+      </button>
 
       {saveError && (
         <div style={{ marginBottom: 8, color: "var(--accent-red)", fontSize: 13 }}>

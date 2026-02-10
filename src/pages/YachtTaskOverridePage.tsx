@@ -194,12 +194,13 @@ export default function YachtTaskOverridePage() {
   return (
     <div className="screen">
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
-        <div className="primary-button" onClick={() => navigate(-1)} style={{ cursor: "pointer" }}>
+        <button
+          type="button"
+          className="primary-button"
+          onClick={() => navigate(-1)}
+        >
           ← Back
-        </div>
-        <div className="primary-button" onClick={() => navigate("/desktop")} style={{ cursor: "pointer" }}>
-          Home
-        </div>
+        </button>
       </div>
 
       <hr />

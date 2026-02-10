@@ -34,6 +34,8 @@ export function useUserGroupTree() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    let cancelled = false
+
     const load = async () => {
       setLoading(true)
       setError(null)
@@ -44,6 +46,8 @@ export function useUserGroupTree() {
         .from("groups")
         .select("id, name, parent_group_id, is_archived")
         .order("name")
+
+      if (cancelled) return
 
       if (groupError) {
         setError(groupError.message)
@@ -57,6 +61,8 @@ export function useUserGroupTree() {
         .from("user_group_links")
         .select("user_id, group_id")
 
+      if (cancelled) return
+
       if (linkError) {
         setError(linkError.message)
         setLoading(false)
@@ -69,6 +75,8 @@ export function useUserGroupTree() {
         .from("users")
         .select("id, display_name, email")
         .order("display_name")
+
+      if (cancelled) return
 
       if (userError) {
         setError(userError.message)
@@ -163,6 +171,21 @@ export function useUserGroupTree() {
     }
 
     load()
+
+    const sub = supabase.auth.onAuthStateChange(() => load())
+    const onFocus = () => load()
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") load()
+    }
+    window.addEventListener("focus", onFocus)
+    document.addEventListener("visibilitychange", onVisibility)
+
+    return () => {
+      cancelled = true
+      sub.data.subscription.unsubscribe()
+      window.removeEventListener("focus", onFocus)
+      document.removeEventListener("visibilitychange", onVisibility)
+    }
   }, [])
 
   return {

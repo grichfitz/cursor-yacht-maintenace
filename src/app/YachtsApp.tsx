@@ -9,7 +9,6 @@ import { pickBadgeVariant } from "../ui/badgeColors"
 export default function YachtsApp() {
   const navigate = useNavigate()
   const { nodes, loading } = useYachtGroupTree()
-  const rootIds = (nodes as TreeNode[]).filter((n) => n.parentId === null).map((n) => n.id)
 
   if (loading) {
     return <div className="screen">Loading…</div>
@@ -17,12 +16,12 @@ export default function YachtsApp() {
 
   return (
     <div className="screen" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div className="screen-title">Boats</div>
+      <div className="screen-title">Yachts</div>
 
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 8 }}>
         <TreeDisplay
           nodes={nodes as TreeNode[]}
-          defaultExpandedIds={rootIds}
+          defaultExpandedIds={[]}
           renderIcon={(node) => {
             if (node.nodeType === "group") {
               const isVirtual = !!node.meta?.isVirtual
@@ -56,7 +55,7 @@ export default function YachtsApp() {
         className="cta-button"
         onClick={() => navigate("/apps/yachts/new")}
       >
-        + Add Boat
+        + Add Yacht
       </button>
     </div>
   )

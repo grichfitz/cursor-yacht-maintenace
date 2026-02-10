@@ -71,12 +71,15 @@
 - **Notes:** This is a known limitation - `public.tasks` has no safe group anchor for client-side INSERT
 
 #### Test 6 — Yacht visibility and ownership (one group per yacht)
-- **Status:** ⏳ NOT TESTED
+- **Status:** ✅ PASSED
 - **Test Steps:**
   1. Persona B: Open Yachts app → should see no yachts
   2. Persona C: Open Yachts app → should see Worthy Marine yachts
   3. Uniqueness check: Attempt to assign same yacht to second group → should fail with constraint violation
-- **Notes:** Yacht assignment uniqueness already tested and working (radio buttons prevent multiple selections)
+- **Notes:**
+  - Confirmed Persona B is correctly scoped to only the group(s) they are a member of.
+  - Fixed UI regression where non-admin users could see the virtual “Unassigned yachts” bucket (now admin-only via `useYachtGroupTree`).
+  - Yacht assignment uniqueness already tested and working (radio buttons prevent multiple selections).
 
 #### Test 7 — Assign/unassign templates to a yacht
 - **Status:** ⏳ NOT TESTED
@@ -141,6 +144,8 @@ Before continuing testing, ensure these SQL migrations have been applied:
 2. **Category Creation:** Now works with group selector - users can choose which group to create categories in
 3. **Yacht Assignment:** Radio buttons prevent multiple group assignments (enforces one-to-one relationship)
 4. **User-Group Assignment:** Only admins can modify (non-admins see disabled checkboxes)
+5. **Global task visibility depends on Global Library membership:** If a user is not a member of **Global Library**, RLS will return 0 categories/tasks for them. Use `docs/FIX_GLOBAL_LIBRARY_MEMBERSHIP_ALL_USERS.sql` to ensure all users are members.
+6. **Later discussion:** A task should be able to exsist in the global group and/or in the assigned group. So a parent group could have a task for everyone within that group and child groups, but a task can also be just for a child group or specific person
 
 ---
 

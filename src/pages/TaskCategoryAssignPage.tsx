@@ -1,42 +1,57 @@
 import { useNavigate, useParams } from "react-router-dom"
 import { useCategoryTree } from "../hooks/useCategoryTree"
 import GenericTreeAssignPage from "./GenericTreeAssignPage"
-import React from "react";
+import { supabase } from "../lib/supabase"
+import React, { useEffect, useState } from "react";
 
 export default function TaskCategoryAssignPage() {
   const navigate = useNavigate()
   const { taskId } = useParams<{ taskId: string }>()
   const { nodes } = useCategoryTree()
+  const [taskName, setTaskName] = useState<string>("")
 
   if (!taskId) return null
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      const { data, error } = await supabase
+        .from("tasks")
+        .select("name")
+        .eq("id", taskId)
+        .maybeSingle()
+
+      if (!cancelled) {
+        if (error) setTaskName("")
+        else setTaskName((data as any)?.name ?? "")
+      }
+    }
+
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [taskId])
 
   return (
     <div
       className="screen"
       style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}
     >
-<div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
-  <div
-    className="primary-button"
-    onClick={() => navigate(-1)}
-    style={{ cursor: "pointer" }}
-  >
-    ← Back
-  </div>
-
-  <div
-    className="primary-button"
-    onClick={() => navigate("/desktop")}
-    style={{ cursor: "pointer" }}
-  >
-    Home
-  </div>
-</div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+        <button
+          type="button"
+          className="primary-button"
+          onClick={() => navigate(-1)}
+        >
+          ← Back
+        </button>
+      </div>
 
       <hr />
 
       <div style={{ fontWeight: 600, marginBottom: 8 }}>
-        Assigned Categories
+        Assigned Categories{taskName ? ` for ${taskName}` : ""}
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 8 }}>
