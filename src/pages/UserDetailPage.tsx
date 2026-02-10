@@ -15,6 +15,7 @@ export default function UserDetailPage() {
   const [displayName, setDisplayName] = useState("")
   const [email, setEmail] = useState("")
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
@@ -38,13 +39,19 @@ export default function UserDetailPage() {
   const save = async () => {
     if (!userId) return
     setSaving(true)
+    setSaveError(null)
 
-    await supabase
+    const { error } = await supabase
       .from("users")
       .update({
         display_name: displayName || null,
       })
       .eq("id", userId)
+
+    if (error) {
+      setSaveError(error.message)
+      console.error("Error saving user:", error)
+    }
 
     setSaving(false)
   }
@@ -179,14 +186,14 @@ export default function UserDetailPage() {
       <hr />
 
       {/* Save */}
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
         <button
           onClick={save}
           disabled={saving}
           style={{
             background: "transparent",
             border: "none",
-            cursor: "pointer",
+            cursor: saving ? "default" : "pointer",
             fontWeight: 600,
             color: "var(--text-primary)",
             padding: 0,
@@ -195,6 +202,12 @@ export default function UserDetailPage() {
           {saving ? "Saving…" : "Save"}
         </button>
       </div>
+
+      {saveError && (
+        <div style={{ marginBottom: 8, color: "var(--accent-red)", fontSize: 13 }}>
+          {saveError}
+        </div>
+      )}
 
       <hr />
 

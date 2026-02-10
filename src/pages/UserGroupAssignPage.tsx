@@ -43,11 +43,24 @@ export default function UserGroupAssignPage() {
 
       <div style={{ fontWeight: 600, marginBottom: 8 }}>Assigned Groups</div>
 
+      <div style={{ 
+        marginBottom: 12, 
+        padding: 12, 
+        background: "rgba(255, 193, 7, 0.1)", 
+        border: "1px solid rgba(255, 193, 7, 0.3)",
+        borderRadius: 8,
+        fontSize: 13,
+        color: "var(--text-primary)"
+      }}>
+        <strong>Note:</strong> User-group assignment is restricted to administrators only. If you are an admin, you can modify memberships using the checkboxes below. Non-admin users cannot modify user-group assignments.
+      </div>
+
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 8 }}>
         <GenericTreeAssignPage
           targetId={userId}
           nodes={nodes}
           // Schema source of truth: user_group_links(user_id, group_id)
+          // Note: RLS blocks writes - this is admin/service only per RLS_DESIGN.md
           mapTable="user_group_links"
           mapTargetField="user_id"
           mapNodeField="group_id"

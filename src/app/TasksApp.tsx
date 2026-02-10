@@ -26,7 +26,7 @@ export default function TasksApp() {
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 8 }}>
         <TreeDisplay
           nodes={visibleNodes as TreeNode[]}
-          defaultExpandedIds={rootIds}
+          defaultExpandedIds={[]}
           renderIcon={(node) => {
             if (node.nodeType === "category") {
               const variant = pickBadgeVariant(node.id)

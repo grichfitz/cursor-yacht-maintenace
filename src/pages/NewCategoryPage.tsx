@@ -15,53 +15,40 @@ export default function NewCategoryPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const [groupId, setGroupId] = useState<string | null>(null)
+  const [groupId, setGroupId] = useState<string>("")
+  const [groups, setGroups] = useState<Array<{ id: string; name: string }>>([])
 
   useEffect(() => {
-    const loadDefaultGroupId = async () => {
-      // Schema CSV: task_categories.group_id is NOT NULL, so we must provide one.
-      // Prefer the group_id already used by existing categories (single-group setups).
-      const { data: catRows, error: catErr } = await supabase
-        .from("task_categories")
-        .select("group_id")
-        .limit(1)
-
-      if (catErr) {
-        setError(catErr.message)
-        return
-      }
-
-      const existingGroupId = (catRows as any[])?.[0]?.group_id as
-        | string
-        | undefined
-
-      if (existingGroupId) {
-        setGroupId(existingGroupId)
-        return
-      }
-
-      // Fallback: pick any group.
-      const { data: groups, error: grpErr } = await supabase
+    const loadGroups = async () => {
+      // Load visible groups (RLS will filter automatically)
+      const { data, error: grpErr } = await supabase
         .from("groups")
-        .select("id")
+        .select("id, name")
         .order("name")
-        .limit(1)
 
       if (grpErr) {
         setError(grpErr.message)
         return
       }
 
-      const fallbackGroupId = (groups as any[])?.[0]?.id as string | undefined
-      if (!fallbackGroupId) {
-        setError("No groups exist. Create a group before creating categories.")
-        return
-      }
+      const rows = (data as any[]) ?? []
+      const list = rows
+        .map((r) => ({ id: r.id as string, name: r.name as string }))
+        .filter((g) => !!g.id && !!g.name)
 
-      setGroupId(fallbackGroupId)
+      setGroups(list)
+      
+      // Set default to first visible group (or user's primary group if preferred)
+      if (!groupId && list.length > 0) {
+        setGroupId(list[0].id)
+      }
+      
+      if (list.length === 0) {
+        setError("No groups available. You must be a member of at least one group to create categories.")
+      }
     }
 
-    loadDefaultGroupId()
+    loadGroups()
   }, [])
 
   const treeWithRoot = useMemo(() => {
@@ -176,6 +163,20 @@ export default function NewCategoryPage() {
         onChange={(e) => setName(e.target.value)}
         style={{ marginBottom: 12 }}
       />
+
+      <label>Group:</label>
+      <select
+        value={groupId}
+        onChange={(e) => setGroupId(e.target.value)}
+        style={{ marginBottom: 12 }}
+      >
+        <option value="">Select a group…</option>
+        {groups.map((g) => (
+          <option key={g.id} value={g.id}>
+            {g.name}
+          </option>
+        ))}
+      </select>
 
       <hr />
 

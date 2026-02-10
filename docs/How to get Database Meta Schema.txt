@@ -1,0 +1,183 @@
+/* =========================================================
+   MARINE TASK APP — FULL DATABASE SNAPSHOT (POST-RLS)
+   ========================================================= */
+
+select
+  'COLUMNS' as section,
+  table_name,
+  column_name,
+  data_type,
+  is_nullable,
+  column_default,
+  null,
+  null
+from information_schema.columns
+where table_schema = 'public'
+
+union all
+
+select
+  'CONSTRAINTS',
+  tc.table_name,
+  tc.constraint_name,
+  tc.constraint_type,
+  kcu.column_name,
+  ccu.table_name,
+  ccu.column_name,
+  null
+from information_schema.table_constraints tc
+left join information_schema.key_column_usage kcu
+  on tc.constraint_name = kcu.constraint_name
+left join information_schema.constraint_column_usage ccu
+  on tc.constraint_name = ccu.constraint_name
+where tc.table_schema = 'public'
+
+union all
+
+-- Foreign keys with update/delete rules
+select
+  'FOREIGN_KEYS',
+  tc.table_name,
+  tc.constraint_name,
+  rc.update_rule,
+  rc.delete_rule,
+  ccu.table_name,
+  ccu.column_name,
+  null
+from information_schema.table_constraints tc
+join information_schema.referential_constraints rc
+  on tc.constraint_name = rc.constraint_name
+join information_schema.constraint_column_usage ccu
+  on tc.constraint_name = ccu.constraint_name
+where tc.constraint_type = 'FOREIGN KEY'
+  and tc.table_schema = 'public'
+
+union all
+
+select
+  'INDEXES',
+  tablename,
+  indexname,
+  indexdef,
+  null,
+  null,
+  null,
+  null
+from pg_indexes
+where schemaname = 'public'
+
+union all
+
+select
+  'RLS_POLICIES',
+  tablename,
+  policyname,
+  cmd,
+  roles::text,
+  qual,
+  with_check,
+  null
+from pg_policies
+where schemaname = 'public'
+
+union all
+
+-- Compact per-table RLS summary
+select
+  'RLS_SUMMARY',
+  tablename,
+  string_agg(policyname || ' (' || cmd || ')', ', '),
+  null,
+  null,
+  null,
+  null,
+  null
+from pg_policies
+where schemaname = 'public'
+group by tablename
+
+union all
+
+select
+  'RLS_ENABLED',
+  relname,
+  relrowsecurity::text,
+  null,
+  null,
+  null,
+  null,
+  null
+from pg_class
+where relnamespace = 'public'::regnamespace
+
+union all
+
+select
+  'FUNCTIONS',
+  p.proname,
+  pg_get_functiondef(p.oid),
+  null,
+  null,
+  null,
+  null,
+  null
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public'
+
+union all
+
+select
+  'VIEWS',
+  table_name,
+  view_definition,
+  null,
+  null,
+  null,
+  null,
+  null
+from information_schema.views
+where table_schema = 'public'
+
+union all
+
+select
+  'TRIGGERS',
+  event_object_table,
+  trigger_name,
+  action_timing || ' ' || event_manipulation,
+  action_statement,
+  null,
+  null,
+  null
+from information_schema.triggers
+where trigger_schema = 'public'
+
+union all
+
+select
+  'EXTENSIONS',
+  extname,
+  extversion,
+  null,
+  null,
+  null,
+  null,
+  null
+from pg_extension
+
+union all
+
+select
+  'ENUMS',
+  t.typname,
+  e.enumlabel,
+  null,
+  null,
+  null,
+  null,
+  null
+from pg_type t
+join pg_enum e on t.oid = e.enumtypid
+
+order by 1, 2;

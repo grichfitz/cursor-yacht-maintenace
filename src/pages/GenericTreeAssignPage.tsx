@@ -24,16 +24,54 @@ export default function GenericTreeAssignPage({
 }: Props) {
   const navigate = useNavigate()
   const [checked, setChecked] = useState<string[]>([])
+  const [loading, setLoading] = useState<string | null>(null)
+  const [isAdmin, setIsAdmin] = useState<boolean>(false)
+
+  // Determine if we should use radio buttons (for one-to-one relationships like yacht_group_links)
+  const useRadioButtons = mapTable === "yacht_group_links" && mapTargetField === "yacht_id"
+  
+  // Check if this is user-group assignment (admin/service only per RLS_DESIGN.md)
+  const isUserGroupAssignment = mapTable === "user_group_links"
+
+  // Check if current user is admin
+  useEffect(() => {
+    const checkAdmin = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data, error } = await supabase
+        .from("user_role_links")
+        .select("roles(name)")
+        .eq("user_id", user.id)
+
+      if (error) {
+        console.error("Error checking admin status:", error)
+        return
+      }
+
+      const hasAdminRole = (data as any[])?.some(
+        (r: any) => r?.roles?.name?.toLowerCase() === "admin"
+      ) ?? false
+
+      setIsAdmin(hasAdminRole)
+    }
+
+    checkAdmin()
+  }, [])
 
   useEffect(() => {
     supabase
       .from(mapTable)
       .select(mapNodeField)
       .eq(mapTargetField, targetId)
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Error loading assignments:", error)
+          return
+        }
         setChecked((data as any[])?.map(r => r[mapNodeField]) ?? [])
       })
-  }, [targetId])
+  }, [targetId, mapTable, mapTargetField, mapNodeField])
 
   const childrenMap = useMemo(() => {
     const map: Record<string, string[]> = {}
@@ -51,24 +89,158 @@ export default function GenericTreeAssignPage({
   }
 
   const toggle = async (id: string) => {
+    // Prevent multiple rapid clicks
+    if (loading === id) {
+      return
+    }
+    
+    // Block user-group assignment for non-admins (admin/service only per RLS_DESIGN.md)
+    if (isUserGroupAssignment && !isAdmin) {
+      alert("User-group assignment is restricted. Only administrators can modify user-group memberships.")
+      return
+    }
+    
     const shouldCheck = !checked.includes(id)
 
-    setChecked(prev =>
-      shouldCheck ? [...prev, id] : prev.filter(x => x !== id)
-    )
+    setLoading(id)
+    
+    if (useRadioButtons) {
+      // Radio button mode: selecting one deselects others (only one can be selected)
+      if (shouldCheck) {
+        // Selecting a new group - replace current selection
+        setChecked([id])
+      } else {
+        // Unchecking current selection - clear assignment (unassign yacht)
+        setChecked([])
+      }
+    } else {
+      // Checkbox mode: toggle this item (original behavior)
+      setChecked(prev =>
+        shouldCheck ? [...prev, id] : prev.filter(x => x !== id)
+      )
+    }
 
     if (shouldCheck) {
-      await supabase.from(mapTable).upsert({
-        [mapTargetField]: targetId,
-        [mapNodeField]: id
-      })
+      // Special handling for yacht_group_links: one yacht = one group
+      if (useRadioButtons) {
+        // For yacht_group_links: DELETE then INSERT (handles unique constraint on yacht_id)
+        const { error: deleteError } = await supabase
+          .from(mapTable)
+          .delete()
+          .eq(mapTargetField, targetId)
+        
+        if (deleteError && deleteError.code !== "PGRST116") {
+          console.warn("Delete warning (may be OK if no row exists):", deleteError)
+        }
+        
+        // Small delay to ensure DELETE completes
+        await new Promise(resolve => setTimeout(resolve, 150))
+        
+        // Insert new assignment with retry logic
+        let insertAttempts = 0
+        const maxAttempts = 3
+        let insertError: any = null
+        
+        while (insertAttempts < maxAttempts) {
+          if (insertAttempts > 0) {
+            await new Promise(resolve => setTimeout(resolve, 200 * insertAttempts))
+          }
+          
+          const result = await supabase.from(mapTable).insert({
+            [mapTargetField]: targetId,
+            [mapNodeField]: id
+          })
+          
+          insertError = result.error
+          
+          if (!insertError) {
+            console.log("INSERT succeeded on attempt", insertAttempts + 1)
+            break
+          }
+          
+          if (insertError.code !== "23505" && !insertError.message?.includes("duplicate") && !insertError.message?.includes("unique")) {
+            break
+          }
+          
+          insertAttempts++
+        }
+        
+        if (insertError) {
+          console.error("Error inserting yacht assignment after retries:", insertError)
+          
+          if (insertError.code === "23505" || insertError.message?.includes("duplicate") || insertError.message?.includes("unique")) {
+            // Try UPDATE as fallback
+            const { data: updateData, error: updateError } = await supabase
+              .from(mapTable)
+              .update({ [mapNodeField]: id })
+              .eq(mapTargetField, targetId)
+              .select()
+            
+            if (updateError) {
+              console.error("UPDATE also failed:", updateError)
+              const { data: reloadData } = await supabase
+                .from(mapTable)
+                .select(mapNodeField)
+                .eq(mapTargetField, targetId)
+              if (reloadData) {
+                setChecked((reloadData as any[])?.map(r => r[mapNodeField]) ?? [])
+              } else {
+                setChecked([])
+              }
+            }
+          } else {
+            setChecked([])
+          }
+        }
+      } else {
+        // Standard many-to-many upsert
+        const { error } = await supabase.from(mapTable).upsert({
+          [mapTargetField]: targetId,
+          [mapNodeField]: id
+        })
+        
+        if (error) {
+          console.error("Error upserting assignment:", error)
+          setChecked(prev => prev.filter(x => x !== id))
+        }
+      }
     } else {
-      await supabase
-        .from(mapTable)
-        .delete()
-        .eq(mapTargetField, targetId)
-        .eq(mapNodeField, id)
+      // Unchecking/unassigning
+      if (useRadioButtons) {
+        // Radio button mode: delete assignment for this yacht (clear selection)
+        const { error } = await supabase
+          .from(mapTable)
+          .delete()
+          .eq(mapTargetField, targetId)
+        
+        if (error) {
+          console.error("Error deleting yacht assignment:", error)
+          const { data: reloadData } = await supabase
+            .from(mapTable)
+            .select(mapNodeField)
+            .eq(mapTargetField, targetId)
+          if (reloadData) {
+            setChecked((reloadData as any[])?.map(r => r[mapNodeField]) ?? [])
+          } else {
+            setChecked([])
+          }
+        }
+      } else {
+        // Checkbox mode: delete specific assignment
+        const { error } = await supabase
+          .from(mapTable)
+          .delete()
+          .eq(mapTargetField, targetId)
+          .eq(mapNodeField, id)
+        
+        if (error) {
+          console.error("Error deleting assignment:", error)
+          setChecked(prev => [...prev, id])
+        }
+      }
     }
+    
+    setLoading(null)
   }
 
   return (
@@ -78,51 +250,91 @@ export default function GenericTreeAssignPage({
         const isVirtual = node.id.startsWith("__")
         const descendants = getDescendants(node.id)
 
-        const allChildrenChecked =
-  descendants.length > 0 &&
-  descendants.every(x => checked.includes(x))
+        if (useRadioButtons) {
+          // Radio button mode: only one selection allowed
+          const isChecked = checked.includes(node.id)
 
-
-        const someChildrenChecked =
-          descendants.some(x => checked.includes(x))
-
-        const isChecked = checked.includes(node.id)
-        const fullyChecked = isChecked || allChildrenChecked
-
-        return (
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-<input
-  type="checkbox"
-  checked={fullyChecked}
-  disabled={isVirtual}
-  ref={(el) => {
-    if (el) el.indeterminate = !fullyChecked && someChildrenChecked
-  }}
-  onClick={(e) => {
-    e.stopPropagation()
-    // Prevent the row label click from firing
-  }}
-  onChange={(e) => {
-    // Controlled input needs onChange (avoids React read-only warning)
-    e.stopPropagation()
-    if (!isVirtual) toggle(node.id)
-  }}
-/>
-
-            {editBasePath && !isVirtual && (
-              <div
-                className="tree-action-icon"
+          return (
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <input
+                type="radio"
+                name={`${mapTable}-${targetId}`} // Same name for all radios = only one selectable
+                checked={isChecked}
+                disabled={isVirtual || loading === node.id || (isUserGroupAssignment && !isAdmin)}
                 onClick={(e) => {
                   e.stopPropagation()
-                  navigate(`${editBasePath}/${node.id}`)
                 }}
-              >
-                <Pencil size={14} />
-              </div>
-            )}
+                onChange={(e) => {
+                  e.stopPropagation()
+                  if (!isVirtual && (!isUserGroupAssignment || isAdmin)) {
+                    toggle(node.id)
+                  } else if (isUserGroupAssignment && !isAdmin) {
+                    alert("User-group assignment is restricted. Only administrators can modify user-group memberships.")
+                  }
+                }}
+              />
 
-          </div>
-        )
+              {editBasePath && !isVirtual && (
+                <div
+                  className="tree-action-icon"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    navigate(`${editBasePath}/${node.id}`)
+                  }}
+                >
+                  <Pencil size={14} />
+                </div>
+              )}
+            </div>
+          )
+        } else {
+          // Checkbox mode: multiple selections allowed (original behavior)
+          const allChildrenChecked =
+            descendants.length > 0 &&
+            descendants.every(x => checked.includes(x))
+
+          const someChildrenChecked =
+            descendants.some(x => checked.includes(x))
+
+          const isChecked = checked.includes(node.id)
+          const fullyChecked = isChecked || allChildrenChecked
+
+          return (
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <input
+                type="checkbox"
+                checked={fullyChecked}
+                disabled={isVirtual || loading === node.id || (isUserGroupAssignment && !isAdmin)}
+                ref={(el) => {
+                  if (el) el.indeterminate = !fullyChecked && someChildrenChecked
+                }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                }}
+                onChange={(e) => {
+                  e.stopPropagation()
+                  if (!isVirtual && (!isUserGroupAssignment || isAdmin)) {
+                    toggle(node.id)
+                  } else if (isUserGroupAssignment && !isAdmin) {
+                    alert("User-group assignment is restricted. Only administrators can modify user-group memberships.")
+                  }
+                }}
+              />
+
+              {editBasePath && !isVirtual && (
+                <div
+                  className="tree-action-icon"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    navigate(`${editBasePath}/${node.id}`)
+                  }}
+                >
+                  <Pencil size={14} />
+                </div>
+              )}
+            </div>
+          )
+        }
       }}
     />
   )
