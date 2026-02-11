@@ -2,6 +2,10 @@
 
 Use this checklist to confirm the app is healthy after Step 4 (Permissions & RLS) and the `api/invite-user.ts` rewrite.
 
+**Canonical model note (2026-02-11):**
+- Task inheritance/assignment architecture is defined in `docs/HIERARCHICAL_TASK_ASSIGNMENTS.md`.
+- This smoke test plan is kept for stabilisation/RLS regression testing and references **legacy/transitional table names** present at the time (e.g. `public.tasks`, `public.task_contexts`, `public.yacht_tasks`).
+
 This test plan assumes the current (transitional) table names in the live DB:
 - Membership: `public.user_group_links`
 - Yacht ownership: `public.yacht_group_links` (with `unique(yacht_id)` enforced)

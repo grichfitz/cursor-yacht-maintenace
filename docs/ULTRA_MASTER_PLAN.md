@@ -1,4 +1,12 @@
-# ULTRA – Master Plan of Action
+# ULTRA – Master Plan of Action (ARCHIVED)
+
+**Archived:** 2026-02-11  
+**Status:** Historical reference only (non-canonical)
+
+This document contains legacy phrasing/models (e.g. “immutable copies created from templates”) that conflict with the canonical hierarchical assignment + per-yacht execution model.
+
+Canonical reference:
+- `docs/HIERARCHICAL_TASK_ASSIGNMENTS.md`
 
 ## Purpose
 ULTRA is a group-scoped, yacht-centric, offline-first CMMS/workflow system.

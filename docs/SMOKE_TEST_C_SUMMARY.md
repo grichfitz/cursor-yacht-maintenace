@@ -1,5 +1,9 @@
 # Smoke Test C - Persona C (Worthy Marine Member) - Test Summary
 
+**Canonical model note (2026-02-11):**
+- Task inheritance/assignment architecture is defined in `docs/HIERARCHICAL_TASK_ASSIGNMENTS.md`.
+- This summary is kept for RLS regression testing and references legacy/transitional queries/table names (e.g. `tasks`, `task_categories`).
+
 ## Test Objective
 Verify that Worthy Marine members can see:
 1. ✅ Global Library categories/tasks (visible to all users)

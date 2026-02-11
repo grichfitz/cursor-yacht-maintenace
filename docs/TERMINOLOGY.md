@@ -1,8 +1,11 @@
-# ULTRA Terminology Map
+# ULTRA Terminology Map (updated 2026-02-11)
 
-This file aligns conceptual terms with actual schema names.
+This file aligns conceptual terms with schema names.
 
-These names are authoritative.
+**Canonical architecture note:** ULTRA’s canonical model for task inheritance is defined in:
+- `docs/HIERARCHICAL_TASK_ASSIGNMENTS.md`
+
+Some older documents reference legacy table names. This file includes a legacy mapping section so `/docs` remains internally consistent during stabilisation.
 
 ---
 
@@ -19,11 +22,14 @@ Table: categories
 Category ↔ Group binding  
 Table: group_categories
 
-Task Templates (standards)  
+Task Templates (canonical definitions)  
 Table: task_templates
 
-Yacht Task Instances (planned work)  
-Table: yacht_tasks
+Task Instances (per-yacht execution/completion)  
+Table: task_instances
+
+Task Assignments (group binding + inheritance + sparse overrides)  
+Table: task_assignments
 
 Operational Tasks (reactive user-created work)  
 Table: operational_tasks
@@ -39,9 +45,11 @@ Table: operations_queue
 
 ---
 
-Deprecated / legacy mental models:
+Deprecated / legacy mental models / names (do not use for new architecture):
 
 - user_group_links → group_users
 - yacht_group_links → group_yachts
 - tasks → task_templates
-- task_contexts → yacht_tasks / operational_tasks
+- task_contexts → task_instances (and/or legacy assignment/instance tables in older snapshots)
+- yacht_tasks → task_instances
+- task_context_overrides → task_assignments.override_data (canonical sparse override storage)

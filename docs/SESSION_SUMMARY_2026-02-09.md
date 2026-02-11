@@ -1,4 +1,12 @@
-# ULTRA — Session Summary (2026-02-09)
+# ULTRA — Session Summary (2026-02-09) (ARCHIVED)
+
+**Archived:** 2026-02-11  
+**Status:** Historical session log only (non-canonical)
+
+This session summary predates the canonical hierarchical assignment model and references legacy/transitional tables (e.g. `tasks`, `task_contexts`, `yacht_tasks`).
+
+Canonical reference:
+- `docs/HIERARCHICAL_TASK_ASSIGNMENTS.md`
 
 This file is a **downloadable recap** of what was completed in the ULTRA project during this chat session.
 

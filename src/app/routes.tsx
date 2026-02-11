@@ -22,6 +22,10 @@ import UserDetailPage from "../pages/UserDetailPage"
 import UserGroupAssignPage from "../pages/UserGroupAssignPage"
 import ProfilePage from "../pages/ProfilePage"
 import YachtTaskOverridePage from "../pages/YachtTaskOverridePage"
+import GroupTaskAssignPage from "../pages/GroupTaskAssignPage"
+import GroupTaskOverridePage from "../pages/GroupTaskOverridePage"
+import GroupCategoryApplyPage from "../pages/GroupCategoryApplyPage"
+import YachtCategoryApplyPage from "../pages/YachtCategoryApplyPage"
 import React from "react";
 
 
@@ -35,6 +39,7 @@ export default function AppRoutes() {
       <Route path="/apps/yachts/:id" element={<YachtDetailPage />} />
       <Route path="/apps/yachts/:yachtId/tasks" element={<YachtTaskAssignPage />} />
       <Route path="/apps/yachts/:yachtId/tasks/:taskId/edit" element={<YachtTaskOverridePage />} />
+      <Route path="/apps/yachts/:yachtId/categories/apply" element={<YachtCategoryApplyPage />} />
       <Route path="/apps/users" element={<UsersApp />} />
       <Route path="/apps/groups" element={<GroupsApp />} />
       <Route path="/apps/categories" element={<CategoriesApp />} />
@@ -51,6 +56,9 @@ export default function AppRoutes() {
       <Route path="/users/:userId/groups" element={<UserGroupAssignPage />} />
       <Route path="/groups/new" element={<NewGroupPage />} />
       <Route path="/groups/:groupId" element={<GroupEditorPage />} />
+      <Route path="/groups/:groupId/tasks" element={<GroupTaskAssignPage />} />
+      <Route path="/groups/:groupId/tasks/:taskId/override" element={<GroupTaskOverridePage />} />
+      <Route path="/groups/:groupId/categories/apply" element={<GroupCategoryApplyPage />} />
       <Route path="/profile" element={<ProfilePage />} />
       {/* Back-compat: old "More" tab now points to Profile */}
       <Route path="/more" element={<ProfilePage />} />

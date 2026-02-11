@@ -2,6 +2,10 @@
 
 Stabilisation mode (no new endpoints, no schema changes, no new RLS rules beyond targeted fixes).
 
+**Canonical model note (2026-02-11):**
+- Task inheritance/assignment architecture is defined in `docs/HIERARCHICAL_TASK_ASSIGNMENTS.md`.
+- This session summary is kept as a stabilisation log and may mention legacy/transitional models.
+
 ## What changed (high level)
 
 ### UI / UX consistency

@@ -288,25 +288,21 @@ export default function GenericTreeAssignPage({
             </div>
           )
         } else {
-          // Checkbox mode: multiple selections allowed (original behavior)
-          const allChildrenChecked =
-            descendants.length > 0 &&
-            descendants.every(x => checked.includes(x))
-
+          // Checkbox mode: explicit membership only (no upward inheritance).
           const someChildrenChecked =
             descendants.some(x => checked.includes(x))
 
           const isChecked = checked.includes(node.id)
-          const fullyChecked = isChecked || allChildrenChecked
 
           return (
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <input
                 type="checkbox"
-                checked={fullyChecked}
+                checked={isChecked}
                 disabled={isVirtual || loading === node.id || (isUserGroupAssignment && !isAdmin)}
                 ref={(el) => {
-                  if (el) el.indeterminate = !fullyChecked && someChildrenChecked
+                  // If descendants are selected, show tri-state without forcing ancestor membership.
+                  if (el) el.indeterminate = !isChecked && someChildrenChecked
                 }}
                 onClick={(e) => {
                   e.stopPropagation()

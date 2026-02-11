@@ -370,6 +370,30 @@ export default function YachtTaskAssignPage() {
       <hr />
 
       <div style={{ fontWeight: 600, marginBottom: 8 }}>Assigned Tasks</div>
+      <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 10 }}>
+        Note: This is a legacy yacht-scoped assignment screen. Canonical ULTRA uses group-scoped
+        assignments (`task_assignments`) with downward inheritance.
+      </div>
+
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
+        <button
+          type="button"
+          onClick={() => navigate(`/apps/yachts/${yachtId}/categories/apply`)}
+          style={{
+            background: "var(--border-subtle)",
+            border: "none",
+            borderRadius: 12,
+            padding: "4px 10px",
+            cursor: "pointer",
+            color: "var(--text-primary)",
+            fontSize: 13,
+            fontWeight: 500,
+          }}
+          title="Bulk apply a category subtree (creates task_contexts rows)"
+        >
+          Apply Category…
+        </button>
+      </div>
 
       {(pageError || error) && (
         <div style={{ color: "var(--accent-red)", marginBottom: 12, fontSize: 13 }}>

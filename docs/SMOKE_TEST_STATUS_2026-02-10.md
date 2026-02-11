@@ -3,6 +3,10 @@
 **Session:** Stabilisation Mode - Post-RLS Testing  
 **Status:** In Progress
 
+**Canonical model note (2026-02-11):**
+- Task inheritance/assignment architecture is defined in `docs/HIERARCHICAL_TASK_ASSIGNMENTS.md`.
+- This report is kept as a stabilisation artefact and may mention legacy/transitional tables (e.g. `task_contexts`, `yacht_tasks`).
+
 ---
 
 ## Test Progress Summary
@@ -157,6 +161,83 @@ Before continuing testing, ensure these SQL migrations have been applied:
 4. **Test 8:** Execution history blocks unassign
 5. **Test 9:** User invitations
 6. **Test 4:** Creating templates (verify clean error message)
+
+---
+
+## 2026-02-11 Update — Canonical hierarchical assignments (NEW, NOT TESTED)
+
+### What was added (needs testing)
+
+#### Canonical group-scoped task assignment layer (additive)
+- Added `public.task_assignments` (group binding + `inherits_from_assignment_id` + `override_data jsonb`).
+- Added RLS policies for `task_assignments`:
+  - READ supports **downward propagation** via ancestors
+  - WRITE restricted to visible subtree (prevents mutating parent from child)
+- Added SQL-authoritative merge RPC:
+  - `public.effective_task_assignments(target_group_id uuid)`
+- Migration notes doc:
+  - `docs/MIGRATION_TASK_ASSIGNMENTS_CANONICAL.md`
+
+#### UI: Group tasks + overrides (canonical)
+- Groups → **Assigned Tasks** now exists (group-scoped assignments).
+- Tasks inherited from a parent group show as **checked but locked** (cannot be removed locally).
+- Pencil icon creates/edits a **local override** stored in `task_assignments.override_data`.
+
+#### Bulk apply a category (convenience)
+- Group: **Apply Category…** creates missing `task_assignments` rows for all tasks linked to the selected category subtree.
+- Yacht (legacy): **Apply Category…** creates missing `task_contexts` rows for all task↔category links in the selected category subtree.
+
+#### Task editor behavior under RLS (expected limitation)
+- The UI no longer attempts to create a new task version from the client when the task is already “in use”
+  (because `INSERT` into `public.tasks` is blocked by RLS). It shows a clear message and suggests:
+  - enable **Apply globally** to UPDATE-in-place, or
+  - use an approved admin/server path later.
+
+### New tests to run
+
+#### Test 11 — Group task assignments (canonical)
+- **Status:** ⏳ NOT TESTED
+- **Precondition:** Apply migrations listed below.
+- **Steps:**
+  1. Persona A (Admin): Open Groups → pick an operational group → Assigned Tasks.
+  2. Toggle a task ON → should create `task_assignments` row (no 403).
+  3. Refresh → task remains assigned.
+- **Expected:** No frontend inheritance logic required; effective list resolves via RPC.
+
+#### Test 12 — Group local overrides shadow parent (canonical)
+- **Status:** ⏳ NOT TESTED
+- **Steps:**
+  1. Ensure a task is assigned at a parent group.
+  2. Open child group → Assigned Tasks → task shows as inherited (checked/locked).
+  3. Click pencil → create local override → change name/description → save.
+  4. Verify: child subtree shows override; parent and siblings unaffected.
+
+#### Test 13 — Apply category to group (bulk)
+- **Status:** ⏳ NOT TESTED
+- **Steps:**
+  1. Groups → open group → Assigned Tasks → Apply Category…
+  2. Pick category → Apply.
+- **Expected:** Creates missing `task_assignments` rows; does not overwrite existing local overrides.
+
+#### Test 14 — Apply category to yacht (bulk, legacy)
+- **Status:** ⏳ NOT TESTED
+- **Steps:**
+  1. Yachts → open yacht → Assigned Tasks → Apply Category…
+  2. Pick category → Apply.
+- **Expected:** Creates missing `(yacht_id, task_id, category_id)` rows in `task_contexts`.
+
+#### Test 15 — Task editor RLS messaging
+- **Status:** ⏳ NOT TESTED
+- **Steps:**
+  1. Open a task that has at least one `task_contexts` row (in use).
+  2. Edit and click Save with Apply globally OFF.
+  3. Confirm UI shows clear message (and no client-side INSERT attempt).
+  4. Enable Apply globally and save (UPDATE path).
+
+### Additional migrations to apply (new)
+- `migration_add_task_assignments.sql`
+- `migration_task_assignments_rls.sql`
+- `migration_effective_task_assignments_rpc.sql`
 
 ---
 

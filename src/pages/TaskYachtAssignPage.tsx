@@ -276,6 +276,10 @@ export default function TaskYachtAssignPage() {
       <hr />
 
       <div style={{ fontWeight: 600, marginBottom: 8 }}>Assigned Yachts</div>
+      <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 10 }}>
+        Note: This is a legacy yacht-scoped assignment screen. Canonical ULTRA uses group-scoped
+        assignments (`task_assignments`) with downward inheritance.
+      </div>
 
       {(pageError || error) && (
         <div style={{ color: "var(--accent-red)", marginBottom: 12, fontSize: 13 }}>

@@ -4,6 +4,11 @@ Date: 2026-02-09
 
 These decisions are authoritative for backend/server work.
 
+**Canonical model note (2026-02-11):**
+- Task inheritance/assignment architecture is defined in `docs/HIERARCHICAL_TASK_ASSIGNMENTS.md`.
+- Canonical override storage is `task_assignments.override_data` (sparse JSON merged at runtime).
+- Mentions of `task_context_overrides` below should be treated as **legacy/transitional**.
+
 ---
 
 ## DELETE

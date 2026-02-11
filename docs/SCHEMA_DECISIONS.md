@@ -1,8 +1,16 @@
-# Schema Decisions — ULTRA Refactor
+# Schema Decisions — ULTRA Refactor (ARCHIVED)
 
 Date: 2026-02-09
 
 These decisions are final unless explicitly revisited.
+
+**Archived:** 2026-02-11  
+**Status:** Historical reference only (non-canonical)
+
+This document predates the canonical hierarchical assignment model and contains incomplete/legacy references (e.g. `yacht_tasks` naming).
+
+Canonical reference:
+- `docs/HIERARCHICAL_TASK_ASSIGNMENTS.md`
 
 ---
 

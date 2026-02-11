@@ -2,6 +2,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import React from "react";
+import { useIsAdmin } from "../hooks/useIsAdmin"
 
 /* ---------- Types ---------- */
 
@@ -26,6 +27,7 @@ type TaskRow = {
 export default function TaskDetailPage() {
   const { taskId } = useParams<{ taskId: string }>();
   const navigate = useNavigate();
+  const { isAdmin } = useIsAdmin()
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -101,90 +103,21 @@ export default function TaskDetailPage() {
     setSaveError(null)
     setSaving(true);
 
-    // Default: safe edit. If this task is already used by task_contexts, we create a new version.
+    const formatRlsError = (rawMessage?: string) => {
+      return (
+        rawMessage ||
+        "Permission denied by Row Level Security (RLS)."
+      )
+    }
+
+    // IMPORTANT (Stabilisation + RLS):
+    // Creating new task versions requires INSERT into `public.tasks`, which is intentionally blocked
+    // under current RLS (see smoke tests). Don't attempt it from the client.
     if (!applyGlobally && inUse) {
-      // 1) Load current version metadata (lineage/version).
-      const { data: current, error: loadErr } = await supabase
-        .from("tasks")
-        .select("id, lineage_id, version")
-        .eq("id", taskId)
-        .single()
-
-      if (loadErr || !current) {
-        setSaveError(loadErr?.message || "Failed to load current task.")
-        setSaving(false)
-        return
-      }
-
-      const lineageId: string = (current as any)?.lineage_id || taskId
-      const nextVersion: number = ((current as any)?.version ?? 1) + 1
-
-      // 2) Create new version (latest).
-      const { data: inserted, error: insErr } = await supabase
-        .from("tasks")
-        .insert({
-          name,
-          description: description || null,
-          default_unit_of_measure_id: unitId,
-          default_period_id: periodId,
-          lineage_id: lineageId,
-          version: nextVersion,
-          is_latest: true,
-          superseded_at: null,
-        })
-        .select("id")
-        .single()
-
-      if (insErr || !inserted?.id) {
-        setSaveError(
-          insErr?.message ||
-            "Failed to create a new task version. (Did you run migration_task_versioning.sql?)"
-        )
-        setSaving(false)
-        return
-      }
-
-      const newTaskId = inserted.id as string
-
-      // 3) Mark all other versions as not latest (keep only the new one latest).
-      await supabase
-        .from("tasks")
-        .update({ is_latest: false, superseded_at: new Date().toISOString() })
-        .eq("lineage_id", lineageId)
-        .neq("id", newTaskId)
-
-      // 4) Duplicate category mappings so the new version appears where the old template did.
-      const { data: catLinks, error: catErr } = await supabase
-        .from("task_category_map")
-        .select("category_id")
-        .eq("task_id", taskId)
-
-      if (!catErr && (catLinks?.length ?? 0) > 0) {
-        const rows = (catLinks as any[]).map((l) => ({
-          task_id: newTaskId,
-          category_id: l.category_id,
-        }))
-        await supabase.from("task_category_map").upsert(rows)
-      }
-
-      // Legacy link table: best-effort keep in sync.
-      const { data: legacyLinks } = await supabase
-        .from("task_category_links")
-        .select("category_id")
-        .eq("task_id", taskId)
-
-      if ((legacyLinks?.length ?? 0) > 0) {
-        const rows = (legacyLinks as any[]).map((l) => ({
-          task_id: newTaskId,
-          category_id: l.category_id,
-        }))
-        await supabase.from("task_category_links").upsert(rows as any)
-      }
-
-      setSaveInfo("Saved as a new version. Existing yachts keep the old version.")
+      setSaveError(
+        "This task has already been assigned to at least one yacht.\n\nTo avoid changing existing yachts, the app would normally create a NEW version of this task when you save — but database security (RLS) blocks creating new tasks from the app.\n\nIf you want to save right now, turn on “Apply globally” (this edits the existing task for everyone). Otherwise, this needs an admin/server tool later."
+      )
       setSaving(false)
-      setApplyGlobally(false)
-      navigate(`/apps/tasks/${newTaskId}`, { replace: true })
       return
     }
 
@@ -200,7 +133,16 @@ export default function TaskDetailPage() {
       .eq("id", taskId);
 
     if (upErr) {
-      setSaveError(upErr.message)
+      const msg = upErr?.message
+      const looksLikeRls =
+        (upErr as any)?.status === 403 ||
+        (typeof msg === "string" && msg.toLowerCase().includes("row level security"))
+
+      setSaveError(
+        looksLikeRls
+          ? `Save blocked by RLS. ${formatRlsError(msg)}`
+          : upErr.message
+      )
       setSaving(false)
       return
     }
@@ -309,6 +251,11 @@ export default function TaskDetailPage() {
       <hr />
 
       <div style={{ fontWeight: 600, marginBottom: 8 }}>Task Editor</div>
+      {!isAdmin && (
+        <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 10 }}>
+          Note: Task template editing/versioning may be restricted by RLS. If you see a 403 error, an admin/server-side path is required.
+        </div>
+      )}
 
       {/* Name */}
       <label>Name:</label>
@@ -369,6 +316,18 @@ export default function TaskDetailPage() {
         </div>
       )}
 
+      <button
+        type="button"
+        className="cta-button"
+        onClick={handleSave}
+        disabled={saving}
+        style={{ opacity: saving ? 0.6 : 1 }}
+      >
+        {saving ? "Saving…" : "Save"}
+      </button>
+
+      <div style={{ height: 10 }} />
+
       <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginBottom: 10 }}>
         <input
           type="checkbox"
@@ -379,16 +338,9 @@ export default function TaskDetailPage() {
         />
         Apply globally
       </label>
-
-      <button
-        type="button"
-        className="cta-button"
-        onClick={handleSave}
-        disabled={saving}
-        style={{ opacity: saving ? 0.6 : 1 }}
-      >
-        {saving ? "Saving…" : "Save"}
-      </button>
+      <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: -6, marginBottom: 12 }}>
+        On = edit the existing task everywhere. Off = would create a new version (blocked in-app by database security).
+      </div>
 
       <hr />
 

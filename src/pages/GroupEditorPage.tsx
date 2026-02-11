@@ -414,6 +414,30 @@ export default function GroupEditorPage() {
         </button>
       ) : null}
 
+      {/* Assigned Tasks (canonical: group-scoped assignments with downward propagation) */}
+      {!isVirtualGroup ? (
+        <div style={{ marginTop: 4, marginBottom: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button
+            onClick={() => navigate(`/groups/${groupId}/tasks`)}
+            style={{
+              background: "var(--border-subtle)",
+              border: "none",
+              borderRadius: 12,
+              padding: "4px 10px",
+              fontSize: 13,
+              fontWeight: 500,
+              color: "var(--text-primary)",
+              cursor: "pointer",
+              opacity: saving ? 0.6 : 1,
+            }}
+            disabled={saving}
+            title="Assign tasks to this group (propagates downward)"
+          >
+            Assigned Tasks
+          </button>
+        </div>
+      ) : null}
+
       {!isVirtualGroup && isAdmin && !isArchived ? (
         <>
           <hr />

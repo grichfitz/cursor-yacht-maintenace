@@ -1,9 +1,14 @@
-# RLS Design — ULTRA
+# RLS Design — ULTRA (kept; terminology aligned 2026-02-11)
 
 Date: 2026-02-09
 
 This document defines the authoritative Row Level Security (RLS)
 design for ULTRA. SQL implementation must follow this intent.
+
+Terminology alignment note:
+- Canonical task inheritance model: `docs/HIERARCHICAL_TASK_ASSIGNMENTS.md`
+- Canonical tables: `task_templates`, `task_assignments`, `task_instances`
+- Older docs may mention legacy names (e.g. `tasks`, `task_contexts`, `yacht_tasks`)
 
 ---
 
@@ -20,7 +25,7 @@ design for ULTRA. SQL implementation must follow this intent.
 
 - Users → group membership (group_users)
 - Yachts → exactly one owning group (group_yachts)
-- Tasks → visible only via yacht/group scope
+- Task templates/assignments/instances → visible only via group/yacht scope
 
 ---
 
@@ -34,7 +39,8 @@ design for ULTRA. SQL implementation must follow this intent.
 - categories
 - group_categories
 - task_templates
-- yacht_tasks
+- task_assignments
+- task_instances
 - operational_tasks
 - task_comments
 - task_photos
