@@ -108,6 +108,104 @@ export default function YachtPage() {
     setLoading(true)
     setError(null)
 
+    // If not admin, restrict yacht visibility to user's group memberships.
+    if (role !== "admin") {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        setYacht(null)
+        setInstances([])
+        setAssignments(new Map())
+        setLoading(false)
+        return
+      }
+
+      const { data: links, error: linkErr } = await supabase
+        .from("user_group_links")
+        .select("group_id")
+        .eq("user_id", user.id)
+
+      if (linkErr) {
+        setError(linkErr.message)
+        setYacht(null)
+        setInstances([])
+        setAssignments(new Map())
+        setLoading(false)
+        return
+      }
+
+      const groupIds = Array.from(
+        new Set(((links as any[]) ?? []).map((l) => l.group_id).filter(Boolean))
+      )
+
+      if (groupIds.length === 0) {
+        setYacht(null)
+        setInstances([])
+        setAssignments(new Map())
+        setLoading(false)
+        return
+      }
+
+      const { data: yachtRow, error: yErr } = await supabase
+        .from("yachts")
+        .select("id,name,group_id")
+        .eq("id", yachtId)
+        .in("group_id", groupIds)
+        .maybeSingle()
+
+      if (yErr) {
+        setError(yErr.message)
+        setLoading(false)
+        return
+      }
+
+      if (!yachtRow) {
+        setYacht(null)
+        setInstances([])
+        setAssignments(new Map())
+        setLoading(false)
+        return
+      }
+
+      // Proceed with visible yachtRow.
+      const { data: taskRows, error: tErr } = await supabase
+        .from("task_instances")
+        .select("id,yacht_id,status,due_at,template_id,template_name")
+        .eq("yacht_id", yachtId)
+        .order("due_at", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: false })
+
+      if (tErr) {
+        setError(tErr.message)
+        setYacht(yachtRow as YachtRow)
+        setInstances([])
+        setLoading(false)
+        return
+      }
+
+      const instanceIds = ((taskRows as TaskInstanceRow[]) ?? []).map((t) => t.id)
+      const assignmentMap = new Map<string, AssignmentRow>()
+
+      if (instanceIds.length > 0) {
+        const { data: aRows, error: aErr } = await supabase
+          .from("task_assignments")
+          .select("task_instance_id,assigned_to,assigned_at")
+          .in("task_instance_id", instanceIds)
+
+        if (!aErr) {
+          ;((aRows as AssignmentRow[]) ?? []).forEach((a) => assignmentMap.set(a.task_instance_id, a))
+        }
+      }
+
+      setYacht(yachtRow as YachtRow)
+      setInstances((taskRows as TaskInstanceRow[]) ?? [])
+      setAssignments(assignmentMap)
+      setLoading(false)
+      return
+    }
+
     const { data: yachtRow, error: yErr } = await supabase
       .from("yachts")
       .select("id,name,group_id")

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { supabase } from "../lib/supabase"
 import { useFocusReload } from "../hooks/useFocusReload"
 import { useSession } from "../auth/SessionProvider"
+import { useMyRole } from "../hooks/useMyRole"
 
 type YachtRow = {
   id: string
@@ -13,6 +14,7 @@ type YachtRow = {
 export default function YachtsPage() {
   const navigate = useNavigate()
   const { session } = useSession()
+  const { role } = useMyRole()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [yachts, setYachts] = useState<YachtRow[]>([])
@@ -26,6 +28,58 @@ export default function YachtsPage() {
     }, 1500)
 
     try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        setYachts([])
+        setLoading(false)
+        return
+      }
+
+      // Admin can see all yachts; everyone else is restricted to their group memberships.
+      if (role !== "admin") {
+        const { data: links, error: linkErr } = await supabase
+          .from("user_group_links")
+          .select("group_id")
+          .eq("user_id", user.id)
+
+        if (linkErr) {
+          setError(linkErr.message)
+          setYachts([])
+          setLoading(false)
+          return
+        }
+
+        const groupIds = Array.from(
+          new Set(((links as any[]) ?? []).map((l) => l.group_id).filter(Boolean))
+        )
+
+        if (groupIds.length === 0) {
+          setYachts([])
+          setLoading(false)
+          return
+        }
+
+        const { data, error: loadErr } = await supabase
+          .from("yachts")
+          .select("id,name,group_id")
+          .in("group_id", groupIds)
+          .order("name")
+
+        if (loadErr) {
+          setError(loadErr.message)
+          setYachts([])
+          setLoading(false)
+          return
+        }
+
+        setYachts((data as YachtRow[]) ?? [])
+        setLoading(false)
+        return
+      }
+
       const { data, error: loadErr } = await supabase
         .from("yachts")
         .select("id,name,group_id")
@@ -43,7 +97,7 @@ export default function YachtsPage() {
     } finally {
       window.clearTimeout(timeoutId)
     }
-  }, [])
+  }, [role])
 
   useEffect(() => {
     if (!session) return

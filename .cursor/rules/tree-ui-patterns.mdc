@@ -1,0 +1,36 @@
+---
+description: Use consistent tree UI for groups & categories
+globs: src/**/*.tsx
+alwaysApply: false
+---
+
+# Tree UI patterns (Groups + Categories)
+
+When implementing or modifying any UI that **displays a group tree** or **category tree**, keep the presentation consistent with the existing “tree list” style used elsewhere in the app.
+
+- **Prefer**: `TreeDisplay`-based tree layouts and the existing “Editor list” styles (`card`, `card-list`, `list-row`).
+- **Avoid**: HTML tables for directory-like lists, and avoid native `<select multiple>` for membership assignment.
+
+## Display rules (read-only or list views)
+
+- **Hierarchy**: show parent/child indentation using the same pattern as editor lists:
+  - `paddingLeft: 10 + depth * 18`
+  - Child rows use `↳` prefix in the label for visual clarity.
+- **Grouping**: if items belong under groups/categories, render them **under their parent node** (like “yachts under groups”), not as a flat list.
+
+## Assignment rules (membership pages)
+
+- **Use** `GenericTreeAssignPage` + `TreeDisplay` for assigning groups/categories via a tree.
+- Keep the interaction consistent with existing patterns: checkbox/radio in the tree action area; avoid custom multi-select UIs.
+
+## Dropdown labels for selecting a node
+
+When a user must choose a group/category in a `<select>`:
+
+- **Show path labels** like `Parent › Child` (see the `formatTreeLabel` approach used in editor pages).
+
+## Notes
+
+- Keep UI simple and consistent with existing editor pages.
+- Reuse existing components/styles instead of inventing new layouts.
+

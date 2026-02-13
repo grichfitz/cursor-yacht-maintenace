@@ -8,6 +8,7 @@ const items: Item[] = [
   { label: "Groups", to: "/editor/groups" },
   { label: "Categories", to: "/editor/categories" },
   { label: "Tasks", to: "/editor/task-templates" },
+  { label: "Users", to: "/users" },
 ]
 
 export default function EditorNav() {

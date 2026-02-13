@@ -9,11 +9,17 @@ import YachtsPage from "../pages/YachtsPage"
 import YachtPage from "../pages/YachtPage"
 import ReportsPage from "../pages/ReportsPage"
 import ProfilePage from "../pages/ProfilePage"
+import AssignmentsPage from "../pages/AssignmentsPage"
+import TemplateListPage from "../pages/TemplateListPage"
+import TemplateEditorPage from "../pages/TemplateEditorPage"
+import UsersPage from "../pages/UsersPage"
 
 import EditorYachtsPage from "../pages/editor/EditorYachtsPage"
 import EditorGroupsPage from "../pages/editor/EditorGroupsPage"
 import EditorCategoriesPage from "../pages/editor/EditorCategoriesPage"
 import EditorTaskTemplatesPage from "../pages/editor/EditorTaskTemplatesPage"
+import EditorUserGroupsPage from "../pages/editor/EditorUserGroupsPage"
+import EditorUserPage from "../pages/editor/EditorUserPage"
 
 function EditorRoute({ children }: { children: React.ReactNode }) {
   return <RequireRole allow={["admin"]}>{children}</RequireRole>
@@ -51,6 +57,57 @@ export default function AppRoutes() {
       <Route path="/reports" element={<ReportsRoute />} />
 
       <Route path="/profile" element={<ProfilePage />} />
+
+      <Route
+        path="/templates"
+        element={
+          <EditorRoute>
+            <TemplateListPage />
+          </EditorRoute>
+        }
+      />
+      <Route
+        path="/templates/:id"
+        element={
+          <EditorRoute>
+            <TemplateEditorPage />
+          </EditorRoute>
+        }
+      />
+
+      <Route
+        path="/assignments"
+        element={
+          <EditorRoute>
+            <AssignmentsPage />
+          </EditorRoute>
+        }
+      />
+
+      <Route
+        path="/users"
+        element={
+          <EditorRoute>
+            <UsersPage />
+          </EditorRoute>
+        }
+      />
+      <Route
+        path="/users/:userId"
+        element={
+          <EditorRoute>
+            <EditorUserPage />
+          </EditorRoute>
+        }
+      />
+      <Route
+        path="/users/:userId/groups"
+        element={
+          <EditorRoute>
+            <EditorUserGroupsPage />
+          </EditorRoute>
+        }
+      />
 
       {/* Admin-only Editor */}
       <Route path="/editor" element={<Navigate to="/editor/yachts" replace />} />

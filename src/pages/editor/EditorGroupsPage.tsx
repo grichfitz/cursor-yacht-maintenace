@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react"
 import { supabase } from "../../lib/supabase"
 import EditorNav from "./EditorNav"
 import { useSession } from "../../auth/SessionProvider"
+import TreeDisplay, { type TreeNode } from "../../components/TreeDisplay"
 
 type GroupRow = { id: string; name: string; parent_group_id: string | null }
 type UserRow = { id: string; display_name: string | null; email: string | null; role?: string | null }
@@ -26,6 +27,7 @@ export default function EditorGroupsPage() {
   const [members, setMembers] = useState<UserRow[]>([])
   const [membersLoading, setMembersLoading] = useState(false)
   const [addUserId, setAddUserId] = useState("")
+  const [selectedId, setSelectedId] = useState<string | undefined>(undefined)
 
   const groupById = useMemo(() => {
     const m = new Map<string, GroupRow>()
@@ -77,6 +79,23 @@ export default function EditorGroupsPage() {
 
     return out
   }, [childrenMap, groups])
+
+  const treeNodes = useMemo(() => {
+    return orderedGroups.map(({ g }) => {
+      const parentId =
+        g.parent_group_id && groupById.has(g.parent_group_id)
+          ? g.parent_group_id
+          : null
+      const node: TreeNode = {
+        id: g.id,
+        parentId,
+        label: g.name,
+        nodeType: "group",
+        meta: g,
+      }
+      return node
+    })
+  }, [orderedGroups, groupById])
 
   const descendantIdsOfEditing = useMemo(() => {
     if (!editingId) return new Set<string>()
@@ -186,6 +205,7 @@ export default function EditorGroupsPage() {
     setEditName(g.name)
     setEditParentId(g.parent_group_id ?? "")
     setAddUserId("")
+    setSelectedId(g.id)
   }
 
   const save = async () => {
@@ -362,175 +382,160 @@ export default function EditorGroupsPage() {
         </button>
       </div>
 
-      <div className="card card-list">
-        <div className="list-row" style={{ justifyContent: "space-between" }}>
+      {editingId ? (
+        <div className="card">
+          <div style={{ fontWeight: 800, marginBottom: 10 }}>Edit group</div>
+          <label>Name:</label>
+          <input
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            style={{ marginBottom: 12 }}
+            disabled={saving}
+          />
+          <label>Parent group:</label>
+          <select
+            value={editParentId}
+            onChange={(e) => setEditParentId(e.target.value)}
+            style={{ marginBottom: 12 }}
+            disabled={saving}
+          >
+            <option value="">—</option>
+            {orderedGroups
+              .map((x) => x.g)
+              .filter((p) => p.id !== editingId && !descendantIdsOfEditing.has(p.id))
+              .map((p) => (
+                <option key={p.id} value={p.id}>
+                  {formatTreeLabel(p)}
+                </option>
+              ))}
+          </select>
+
+          <hr />
+
+          <div style={{ fontWeight: 800, marginBottom: 8 }}>Members (bootstrap)</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+            <button type="button" className="secondary" onClick={addMe} disabled={saving}>
+              + Add me
+            </button>
+
+            <select
+              value={addUserId}
+              onChange={(e) => setAddUserId(e.target.value)}
+              disabled={saving || users.length === 0}
+              style={{ flex: 1, minWidth: 180 }}
+            >
+              <option value="">
+                {users.length === 0 ? "User directory unavailable" : "Select user…"}
+              </option>
+              {users
+                .filter((u) => !members.some((m) => m.id === u.id))
+                .map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {(u.display_name || u.email || "Unnamed user") +
+                      (u.role ? ` (${u.role})` : "")}
+                  </option>
+                ))}
+            </select>
+
+            <button
+              type="button"
+              onClick={() => addMember(addUserId)}
+              disabled={saving || !addUserId}
+              style={{ opacity: saving || !addUserId ? 0.6 : 1 }}
+            >
+              Add
+            </button>
+          </div>
+
+          {membersLoading ? (
+            <div style={{ fontSize: 13, opacity: 0.75, marginBottom: 8 }}>Loading members…</div>
+          ) : members.length === 0 ? (
+            <div style={{ fontSize: 13, opacity: 0.75, marginBottom: 8 }}>No members.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+              {members.map((m) => (
+                <div
+                  key={m.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "8px 10px",
+                    border: "1px solid var(--border-subtle)",
+                    borderRadius: 12,
+                    background: "rgba(255,255,255,0.7)",
+                  }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <div style={{ fontWeight: 700 }}>{m.display_name || m.email || m.id}</div>
+                    <div style={{ fontSize: 12, opacity: 0.75 }}>{m.email ? m.email : ""}</div>
+                  </div>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => removeMember(m.id)}
+                    disabled={saving}
+                    style={{ color: "var(--accent-red)" }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              onClick={save}
+              disabled={saving || !editName.trim()}
+              style={{ opacity: saving || !editName.trim() ? 0.6 : 1 }}
+            >
+              {saving ? "Saving…" : "Save"}
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => setEditingId(null)}
+              disabled={saving}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="card">
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
           <div style={{ fontWeight: 800 }}>Groups</div>
           <div style={{ fontSize: 12, opacity: 0.7 }}>{groups.length}</div>
         </div>
 
-        {orderedGroups.map(({ g, depth }) => (
-          <div key={g.id} style={{ borderTop: "1px solid rgba(0,0,0,0.06)" }}>
-            {editingId === g.id ? (
-              <div style={{ padding: 12 }}>
-                <label>Name:</label>
-                <input
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  style={{ marginBottom: 12 }}
-                  disabled={saving}
-                />
-                <label>Parent group:</label>
-                <select
-                  value={editParentId}
-                  onChange={(e) => setEditParentId(e.target.value)}
-                  style={{ marginBottom: 12 }}
-                  disabled={saving}
+        <TreeDisplay
+          nodes={treeNodes}
+          selectedId={selectedId}
+          onSelect={(n) => setSelectedId(n.id)}
+          renderActions={(node) => {
+            const g = (node.meta as GroupRow) ?? null
+            if (!g) return null
+            return (
+              <div style={{ display: "flex", gap: 8 }}>
+                <button type="button" className="secondary" onClick={() => startEdit(g)}>
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => del(g.id)}
+                  style={{ color: "var(--accent-red)" }}
                 >
-                  <option value="">—</option>
-                  {orderedGroups
-                    .map((x) => x.g)
-                    .filter((p) => p.id !== g.id && !descendantIdsOfEditing.has(p.id))
-                    .map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {formatTreeLabel(p)}
-                      </option>
-                    ))}
-                </select>
-
-                <hr />
-
-                <div style={{ fontWeight: 800, marginBottom: 8 }}>Members (bootstrap)</div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-                  <button type="button" className="secondary" onClick={addMe} disabled={saving}>
-                    + Add me
-                  </button>
-
-                  <select
-                    value={addUserId}
-                    onChange={(e) => setAddUserId(e.target.value)}
-                    disabled={saving || users.length === 0}
-                    style={{ flex: 1, minWidth: 180 }}
-                  >
-                    <option value="">
-                      {users.length === 0 ? "User directory unavailable" : "Select user…"}
-                    </option>
-                    {users
-                      .filter((u) => !members.some((m) => m.id === u.id))
-                      .map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {(u.display_name || u.email || "Unnamed user") +
-                            (u.role ? ` (${u.role})` : "")}
-                        </option>
-                      ))}
-                  </select>
-
-                  <button
-                    type="button"
-                    onClick={() => addMember(addUserId)}
-                    disabled={saving || !addUserId}
-                    style={{ opacity: saving || !addUserId ? 0.6 : 1 }}
-                  >
-                    Add
-                  </button>
-                </div>
-
-                {membersLoading ? (
-                  <div style={{ fontSize: 13, opacity: 0.75, marginBottom: 8 }}>Loading members…</div>
-                ) : members.length === 0 ? (
-                  <div style={{ fontSize: 13, opacity: 0.75, marginBottom: 8 }}>No members.</div>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
-                    {members.map((m) => (
-                      <div
-                        key={m.id}
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          gap: 10,
-                          padding: "8px 10px",
-                          border: "1px solid var(--border-subtle)",
-                          borderRadius: 12,
-                          background: "rgba(255,255,255,0.7)",
-                        }}
-                      >
-                        <div style={{ display: "flex", flexDirection: "column" }}>
-                          <div style={{ fontWeight: 700 }}>
-                            {m.display_name || m.email || m.id}
-                          </div>
-                          <div style={{ fontSize: 12, opacity: 0.75 }}>
-                            {m.email ? m.email : ""}
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          className="secondary"
-                          onClick={() => removeMember(m.id)}
-                          disabled={saving}
-                          style={{ color: "var(--accent-red)" }}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button
-                    type="button"
-                    onClick={save}
-                    disabled={saving || !editName.trim()}
-                    style={{ opacity: saving || !editName.trim() ? 0.6 : 1 }}
-                  >
-                    {saving ? "Saving…" : "Save"}
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => setEditingId(null)}
-                    disabled={saving}
-                  >
-                    Cancel
-                  </button>
-                </div>
+                  Delete
+                </button>
               </div>
-            ) : (
-              <div
-                className="list-row"
-                style={{
-                  justifyContent: "space-between",
-                  gap: 10,
-                  paddingLeft: 10 + depth * 18,
-                }}
-              >
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  <div style={{ fontWeight: depth === 0 ? 800 : 700 }}>
-                    {depth === 0 ? g.name : `↳ ${g.name}`}
-                  </div>
-                  {g.parent_group_id ? (
-                    <div style={{ fontSize: 12, opacity: 0.65 }}>
-                      {groupById.get(g.parent_group_id)?.name ?? "—"}
-                    </div>
-                  ) : null}
-                </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button type="button" className="secondary" onClick={() => startEdit(g)}>
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => del(g.id)}
-                    style={{ color: "var(--accent-red)" }}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
+            )
+          }}
+        />
       </div>
     </div>
   )
