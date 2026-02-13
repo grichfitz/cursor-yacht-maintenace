@@ -54,7 +54,12 @@ export default function YachtsPage() {
     }
 
     run()
-    const sub = supabase.auth.onAuthStateChange(() => run())
+    const sub = supabase.auth.onAuthStateChange((event) => {
+      // Avoid resume lag: token refresh fires on app resume; don't flip UI back to loading.
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") {
+        run()
+      }
+    })
 
     return () => {
       cancelled = true
