@@ -14,7 +14,7 @@ export function useMyRole() {
     // Safety: if a transient network/auth call stalls, don't leave the UI in "Loading…" forever.
     const timeoutId = window.setTimeout(() => {
       setLoading(false)
-    }, 6000)
+    }, 1500)
 
     try {
       setLoading(true)

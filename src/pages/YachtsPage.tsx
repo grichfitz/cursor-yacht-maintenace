@@ -23,7 +23,7 @@ export default function YachtsPage() {
 
     const timeoutId = window.setTimeout(() => {
       setLoading(false)
-    }, 6000)
+    }, 1500)
 
     try {
       const { data, error: loadErr } = await supabase

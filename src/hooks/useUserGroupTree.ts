@@ -45,7 +45,7 @@ export function useUserGroupTree() {
 
       const timeoutId = window.setTimeout(() => {
         if (!cancelled) setLoading(false)
-      }, 6000)
+      }, 1500)
 
       try {
 

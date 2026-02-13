@@ -38,7 +38,7 @@ export default function TasksPage() {
 
     const timeoutId = window.setTimeout(() => {
       setLoading(false)
-    }, 6000)
+    }, 1500)
 
     try {
       const {
