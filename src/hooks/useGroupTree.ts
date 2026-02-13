@@ -93,12 +93,25 @@ export function useGroupTree() {
       }
     }
 
+    let lastReloadAt = Date.now()
+    let resumeInFlight = false
+
     load()
 
     // Refresh when the app regains focus (helps reflect recent edits like "Move Group").
-    const onFocus = () => load()
+    const maybeReloadOnResume = () => {
+      const now = Date.now()
+      if (resumeInFlight) return
+      if (now - lastReloadAt < 60_000) return
+      lastReloadAt = now
+      resumeInFlight = true
+      Promise.resolve(load()).finally(() => {
+        resumeInFlight = false
+      })
+    }
+    const onFocus = () => maybeReloadOnResume()
     const onVisibility = () => {
-      if (document.visibilityState === "visible") load()
+      if (document.visibilityState === "visible") maybeReloadOnResume()
     }
     window.addEventListener("focus", onFocus)
     document.addEventListener("visibilitychange", onVisibility)

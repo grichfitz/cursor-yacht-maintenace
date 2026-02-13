@@ -246,13 +246,26 @@ export function useYachtGroupTree() {
       }
     }
 
+    let lastReloadAt = Date.now()
+    let resumeInFlight = false
+
     load()
 
     // Reload whenever auth changes (switching personas) and when focus returns.
     const sub = supabase.auth.onAuthStateChange(() => load())
-    const onFocus = () => load()
+    const maybeReloadOnResume = () => {
+      const now = Date.now()
+      if (resumeInFlight) return
+      if (now - lastReloadAt < 60_000) return
+      lastReloadAt = now
+      resumeInFlight = true
+      Promise.resolve(load()).finally(() => {
+        resumeInFlight = false
+      })
+    }
+    const onFocus = () => maybeReloadOnResume()
     const onVisibility = () => {
-      if (document.visibilityState === "visible") load()
+      if (document.visibilityState === "visible") maybeReloadOnResume()
     }
     window.addEventListener("focus", onFocus)
     document.addEventListener("visibilitychange", onVisibility)
