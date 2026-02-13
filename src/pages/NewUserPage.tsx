@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../lib/supabase"
+import { useSession } from "../auth/SessionProvider"
 
 export default function NewUserPage() {
   const navigate = useNavigate()
+  const { session } = useSession()
 
   const [displayName, setDisplayName] = useState("")
   const [email, setEmail] = useState("")
@@ -14,6 +16,7 @@ export default function NewUserPage() {
   const [info, setInfo] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!session) return
     const loadGroups = async () => {
       const { data, error } = await supabase
         .from("groups")
@@ -38,7 +41,7 @@ export default function NewUserPage() {
 
     loadGroups()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [session])
 
   const handleCreate = async () => {
     setError(null)

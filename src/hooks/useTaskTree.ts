@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { supabase } from "../lib/supabase"
 import type { TreeNode } from "../components/TreeDisplay"
+import { useSession } from "../auth/SessionProvider"
 
 /* ---------- Constants ---------- */
 
@@ -34,16 +35,24 @@ type TaskCategoryMapRow = {
 /* ---------- Hook ---------- */
 
 export function useTaskTree() {
+  const { session } = useSession()
   const [nodes, setNodes] = useState<TreeNode[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!session) return
     let cancelled = false
 
     const load = async () => {
       setLoading(true)
       setError(null)
+
+      const timeoutId = window.setTimeout(() => {
+        if (!cancelled) setLoading(false)
+      }, 6000)
+
+      try {
 
       /* ---------- 1. Load task categories ---------- */
 
@@ -229,6 +238,9 @@ export function useTaskTree() {
 
       setNodes(allNodes)
       setLoading(false)
+      } finally {
+        window.clearTimeout(timeoutId)
+      }
     }
 
     load()
@@ -247,7 +259,7 @@ export function useTaskTree() {
       window.removeEventListener("focus", onFocus)
       document.removeEventListener("visibilitychange", onVisibility)
     }
-  }, [])
+  }, [session])
 
   return {
     nodes,

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { supabase } from "../lib/supabase"
+import { useSession } from "../auth/SessionProvider"
 
 type UserRow = {
   id: string
@@ -11,6 +12,7 @@ type UserRow = {
 export default function UserDetailPage() {
   const { userId } = useParams<{ userId: string }>()
   const navigate = useNavigate()
+  const { session } = useSession()
 
   const [displayName, setDisplayName] = useState("")
   const [email, setEmail] = useState("")
@@ -20,6 +22,7 @@ export default function UserDetailPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!session) return
     if (!userId) return
 
     supabase
@@ -34,7 +37,7 @@ export default function UserDetailPage() {
         setDisplayName(row.display_name ?? "")
         setEmail(row.email ?? "")
       })
-  }, [userId])
+  }, [userId, session])
 
   const save = async () => {
     if (!userId) return

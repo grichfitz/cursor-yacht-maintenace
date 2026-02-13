@@ -5,6 +5,7 @@ import type { TreeNode } from "../components/TreeDisplay"
 import { useTaskTree } from "../hooks/useTaskTree"
 import { supabase } from "../lib/supabase"
 import { Pencil } from "lucide-react"
+import { useSession } from "../auth/SessionProvider"
 
 type TaskContextRow = {
   id: string
@@ -19,6 +20,7 @@ type TaskCategoryMapRow = { category_id: string }
 export default function YachtTaskAssignPage() {
   const navigate = useNavigate()
   const { yachtId } = useParams<{ yachtId: string }>()
+  const { session } = useSession()
 
   const { nodes, loading, error } = useTaskTree()
 
@@ -28,6 +30,7 @@ export default function YachtTaskAssignPage() {
   const [overrideNameByTaskId, setOverrideNameByTaskId] = useState<Record<string, string>>({})
 
   useEffect(() => {
+    if (!session) return
     if (!yachtId) return
 
     const load = async () => {
@@ -54,9 +57,10 @@ export default function YachtTaskAssignPage() {
     }
 
     load()
-  }, [yachtId])
+  }, [yachtId, session])
 
   useEffect(() => {
+    if (!session) return
     if (!yachtId) return
 
     const loadOverrides = async () => {
@@ -99,7 +103,7 @@ export default function YachtTaskAssignPage() {
     }
 
     loadOverrides()
-  }, [yachtId])
+  }, [yachtId, session])
 
   const childrenMap = useMemo(() => {
     const map: Record<string, string[]> = {}

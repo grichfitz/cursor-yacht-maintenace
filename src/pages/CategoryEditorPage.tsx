@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import TreeDisplay from "../components/TreeDisplay";
 import { useCategoryTree } from "../hooks/useCategoryTree";
+import { useSession } from "../auth/SessionProvider";
 import React from "react";
 
 const ROOT_ID = "__root__";
@@ -10,6 +11,7 @@ const ROOT_ID = "__root__";
 export default function CategoryEditorPage() {
   const navigate = useNavigate();
   const { categoryId } = useParams<{ categoryId: string }>();
+  const { session } = useSession();
   const { nodes } = useCategoryTree();
   const isVirtualCategory = !!categoryId?.startsWith("__")
 
@@ -24,6 +26,7 @@ export default function CategoryEditorPage() {
   /* ---------- Load category ---------- */
 
   useEffect(() => {
+    if (!session) return;
     if (!categoryId) return;
     if (categoryId.startsWith("__")) {
       setLoading(false)
@@ -96,7 +99,7 @@ export default function CategoryEditorPage() {
     return () => {
       cancelled = true
     }
-  }, [categoryId]);
+  }, [categoryId, session]);
 
   /* ---------- Circular move prevention ---------- */
 

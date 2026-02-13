@@ -3,13 +3,11 @@ import { useNavigate } from "react-router-dom";
 import {
   CheckSquare,
   Ship,
-  Users,
   BarChart2,
   User,
-  Folder,
-  Tags,
+  Wrench,
 } from "lucide-react";
-import { supabase } from "../lib/supabase";
+import { useMyRole } from "../hooks/useMyRole";
 
 type DesktopApp = {
   id: string;
@@ -20,44 +18,7 @@ type DesktopApp = {
 
 export default function Desktop() {
   const navigate = useNavigate();
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        if (!cancelled) setIsAdmin(false);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("user_role_links")
-        .select("roles(name)")
-        .eq("user_id", user.id);
-
-      if (!cancelled) {
-        if (error) {
-          setIsAdmin(false);
-          return;
-        }
-        const admin =
-          (data as any[])?.some(
-            (r: any) => r?.roles?.name?.toLowerCase() === "admin"
-          ) ?? false;
-        setIsAdmin(admin);
-      }
-    };
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { role, loading } = useMyRole();
 
   const apps: DesktopApp[] = useMemo(() => {
     const base: DesktopApp[] = [
@@ -65,13 +26,13 @@ export default function Desktop() {
         id: "tasks",
         name: "Tasks",
         icon: <CheckSquare size={28} />,
-        route: "/apps/tasks",
+        route: "/tasks",
       },
       {
         id: "yachts",
         name: "Yachts",
         icon: <Ship size={28} />,
-        route: "/apps/yachts",
+        route: "/yachts",
       },
       {
         id: "profile",
@@ -81,42 +42,28 @@ export default function Desktop() {
       },
     ];
 
-    if (isAdmin) {
-      base.push({
-        id: "users",
-        name: "Users",
-        icon: <Users size={28} />,
-        route: "/apps/users",
-      });
-    }
-
-    if (isAdmin) {
-      base.push({
-        id: "groups",
-        name: "Groups",
-        icon: <Folder size={28} />,
-        route: "/apps/groups",
-      })
-      base.push({
-        id: "categories",
-        name: "Categories",
-        icon: <Tags size={28} />,
-        route: "/apps/categories",
-      })
-    }
-
-    // Keep Reports placeholder (admin-only for now).
-    if (isAdmin) {
+    if (role === "manager" || role === "admin") {
       base.push({
         id: "reports",
         name: "Reports",
         icon: <BarChart2 size={28} />,
-        route: "/apps/reports",
+        route: "/reports",
+      });
+    }
+
+    if (role === "admin") {
+      base.push({
+        id: "editor",
+        name: "Editor",
+        icon: <Wrench size={28} />,
+        route: "/editor/yachts",
       });
     }
 
     return base;
-  }, [isAdmin]);
+  }, [role]);
+
+  if (loading) return <div className="screen">Loading…</div>
 
   return (
     <div className="screen">

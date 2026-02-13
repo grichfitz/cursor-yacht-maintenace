@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../lib/supabase"
+import { useSession } from "../auth/SessionProvider"
 
 type Option = {
   id: string
@@ -9,6 +10,7 @@ type Option = {
 
 export default function NewTaskPage() {
   const navigate = useNavigate()
+  const { session } = useSession()
 
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
@@ -21,6 +23,7 @@ export default function NewTaskPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!session) return
     supabase.from("units_of_measure").select("id,name").then(({ data }) => {
       setUnits((data as Option[]) || [])
     })
@@ -28,7 +31,7 @@ export default function NewTaskPage() {
     supabase.from("periods").select("id,name").then(({ data }) => {
       setPeriods((data as Option[]) || [])
     })
-  }, [])
+  }, [session])
 
   const handleCreate = async () => {
     setError(null)

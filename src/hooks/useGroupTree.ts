@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { supabase } from "../lib/supabase"
 import type { TreeNode } from "../components/TreeDisplay"
+import { useSession } from "../auth/SessionProvider"
 
 const ARCHIVE_ID = "__archive__"
 
@@ -12,16 +13,24 @@ type GroupRow = {
 }
 
 export function useGroupTree() {
+  const { session } = useSession()
   const [nodes, setNodes] = useState<TreeNode[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!session) return
     let cancelled = false
 
     const load = async () => {
       setLoading(true)
       setError(null)
+
+      const timeoutId = window.setTimeout(() => {
+        if (!cancelled) setLoading(false)
+      }, 6000)
+
+      try {
 
       // Only admins should see the Archive virtual group.
       let isAdmin = false
@@ -79,6 +88,9 @@ export function useGroupTree() {
 
       setNodes(active)
       setLoading(false)
+      } finally {
+        window.clearTimeout(timeoutId)
+      }
     }
 
     load()
@@ -96,7 +108,7 @@ export function useGroupTree() {
       window.removeEventListener("focus", onFocus)
       document.removeEventListener("visibilitychange", onVisibility)
     }
-  }, [])
+  }, [session])
 
   return {
     nodes,

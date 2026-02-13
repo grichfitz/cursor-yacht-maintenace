@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { supabase } from "../lib/supabase"
 import type { TreeNode } from "../components/TreeDisplay"
+import { useSession } from "../auth/SessionProvider"
 
 /* ---------- Constants ---------- */
 
@@ -30,16 +31,24 @@ type YachtGroupLinkRow = {
 /* ---------- Hook ---------- */
 
 export function useYachtGroupTree() {
+  const { session } = useSession()
   const [nodes, setNodes] = useState<TreeNode[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!session) return
     let cancelled = false
 
     const load = async () => {
       setLoading(true)
       setError(null)
+
+      const timeoutId = window.setTimeout(() => {
+        if (!cancelled) setLoading(false)
+      }, 6000)
+
+      try {
 
       /* ---------- 0. Admin check (only admins can see "unassigned") ---------- */
 
@@ -232,6 +241,9 @@ export function useYachtGroupTree() {
         setNodes(allNodes)
         setLoading(false)
       }
+      } finally {
+        window.clearTimeout(timeoutId)
+      }
     }
 
     load()
@@ -251,7 +263,7 @@ export function useYachtGroupTree() {
       window.removeEventListener("focus", onFocus)
       document.removeEventListener("visibilitychange", onVisibility)
     }
-  }, [])
+  }, [session])
 
   return {
     nodes,

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { supabase } from "../lib/supabase"
+import { useSession } from "../auth/SessionProvider"
 
 type TaskRow = {
   id: string
@@ -23,6 +24,7 @@ type Option = { id: string; name: string }
 export default function YachtTaskOverridePage() {
   const navigate = useNavigate()
   const { yachtId, taskId } = useParams<{ yachtId: string; taskId: string }>()
+  const { session } = useSession()
 
   const [task, setTask] = useState<TaskRow | null>(null)
   const [scopeContextId, setScopeContextId] = useState<string | null>(null)
@@ -40,15 +42,17 @@ export default function YachtTaskOverridePage() {
   const [periods, setPeriods] = useState<Option[]>([])
 
   useEffect(() => {
+    if (!session) return
     supabase.from("units_of_measure").select("id,name").then(({ data }) => {
       setUnits((data as any[])?.map((d) => ({ id: d.id, name: d.name })) ?? [])
     })
     supabase.from("periods").select("id,name").then(({ data }) => {
       setPeriods((data as any[])?.map((d) => ({ id: d.id, name: d.name })) ?? [])
     })
-  }, [])
+  }, [session])
 
   useEffect(() => {
+    if (!session) return
     if (!yachtId || !taskId) return
 
     const load = async () => {
@@ -130,7 +134,7 @@ export default function YachtTaskOverridePage() {
     }
 
     load()
-  }, [yachtId, taskId])
+  }, [yachtId, taskId, session])
 
   const effectiveName = useMemo(() => {
     return nameOverride.trim() || task?.name || ""

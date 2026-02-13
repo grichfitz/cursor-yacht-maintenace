@@ -3,10 +3,12 @@ import { useNavigate, useParams } from "react-router-dom"
 import GenericTreeAssignPage from "./GenericTreeAssignPage"
 import { useGroupTree } from "../hooks/useGroupTree"
 import { supabase } from "../lib/supabase"
+import { useSession } from "../auth/SessionProvider"
 
 export default function UserGroupAssignPage() {
   const navigate = useNavigate()
   const { userId } = useParams<{ userId: string }>()
+  const { session } = useSession()
   const { nodes } = useGroupTree()
 
   const [isAdmin, setIsAdmin] = useState(false)
@@ -17,6 +19,7 @@ export default function UserGroupAssignPage() {
   const [userLabel, setUserLabel] = useState<string>("")
 
   useEffect(() => {
+    if (!session) return
     if (!userId) return
     let cancelled = false
 
@@ -97,7 +100,7 @@ export default function UserGroupAssignPage() {
     return () => {
       cancelled = true
     }
-  }, [userId])
+  }, [userId, session])
 
   const memberGroups = useMemo(() => {
     const set = new Set(memberGroupIds)

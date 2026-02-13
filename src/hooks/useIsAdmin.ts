@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react"
 import { supabase } from "../lib/supabase"
+import { useSession } from "../auth/SessionProvider"
 
 export function useIsAdmin() {
+  const { session } = useSession()
   const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (!session) return
     let cancelled = false
 
     const load = async () => {
@@ -56,7 +59,7 @@ export function useIsAdmin() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [session])
 
   return { isAdmin, loading }
 }

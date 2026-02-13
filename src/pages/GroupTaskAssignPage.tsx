@@ -5,6 +5,7 @@ import TreeDisplay from "../components/TreeDisplay"
 import type { TreeNode } from "../components/TreeDisplay"
 import { useTaskTree } from "../hooks/useTaskTree"
 import { supabase } from "../lib/supabase"
+import { useSession } from "../auth/SessionProvider"
 
 type TaskAssignmentRow = {
   id: string
@@ -30,6 +31,7 @@ type EffectiveAssignmentRow = {
 export default function GroupTaskAssignPage() {
   const navigate = useNavigate()
   const { groupId } = useParams<{ groupId: string }>()
+  const { session } = useSession()
   const { nodes, loading, error } = useTaskTree()
 
   const [effectiveByTaskId, setEffectiveByTaskId] = useState<
@@ -83,9 +85,10 @@ export default function GroupTaskAssignPage() {
   }
 
   useEffect(() => {
+    if (!session) return
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groupId])
+  }, [groupId, session])
 
   const toggleTask = async (taskId: string) => {
     if (!groupId) return

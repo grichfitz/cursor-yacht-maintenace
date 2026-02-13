@@ -4,6 +4,7 @@ import TreeDisplay from "../components/TreeDisplay"
 import type { TreeNode } from "../components/TreeDisplay"
 import { useYachtGroupTree } from "../hooks/useYachtGroupTree"
 import { supabase } from "../lib/supabase"
+import { useSession } from "../auth/SessionProvider"
 
 type TaskCategoryMapRow = { category_id: string }
 
@@ -15,6 +16,7 @@ type TaskContextRow = {
 export default function TaskYachtAssignPage() {
   const navigate = useNavigate()
   const { taskId } = useParams<{ taskId: string }>()
+  const { session } = useSession()
   const { nodes, loading, error } = useYachtGroupTree()
 
   const [checkedYachtIds, setCheckedYachtIds] = useState<string[]>([])
@@ -24,6 +26,7 @@ export default function TaskYachtAssignPage() {
   const [autoCategoryId, setAutoCategoryId] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!session) return
     if (!taskId) return
 
     const load = async () => {
@@ -65,7 +68,7 @@ export default function TaskYachtAssignPage() {
     }
 
     load()
-  }, [taskId])
+  }, [taskId, session])
 
   const ensureAutoCategory = async (): Promise<string[]> => {
     if (!taskId) return []

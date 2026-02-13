@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react"
 import { supabase } from "../lib/supabase"
+import { useSession } from "../auth/SessionProvider"
 
 type UserRow = {
   id: string
@@ -21,6 +22,7 @@ type GroupRow = {
 const GLOBAL_GROUP_NAME = "Global Library"
 
 export default function ProfilePage() {
+  const { session } = useSession()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -33,6 +35,7 @@ export default function ProfilePage() {
   const [globalGroups, setGlobalGroups] = useState<string[]>([])
 
   useEffect(() => {
+    if (!session) return
     let cancelled = false
 
     const load = async () => {
@@ -172,7 +175,7 @@ export default function ProfilePage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [session])
 
   const canSave = useMemo(() => {
     return !loading && !saving && !!name.trim()

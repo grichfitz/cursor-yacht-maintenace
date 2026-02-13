@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom"
 import TreeDisplay from "../components/TreeDisplay"
 import { Pencil } from "lucide-react"
 import { supabase } from "../lib/supabase"
+import { useSession } from "../auth/SessionProvider"
 
 type Props = {
   targetId: string
@@ -23,6 +24,7 @@ export default function GenericTreeAssignPage({
   editBasePath
 }: Props) {
   const navigate = useNavigate()
+  const { session } = useSession()
   const [checked, setChecked] = useState<string[]>([])
   const [loading, setLoading] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState<boolean>(false)
@@ -35,6 +37,7 @@ export default function GenericTreeAssignPage({
 
   // Check if current user is admin
   useEffect(() => {
+    if (!session) return
     const checkAdmin = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
@@ -57,9 +60,10 @@ export default function GenericTreeAssignPage({
     }
 
     checkAdmin()
-  }, [])
+  }, [session])
 
   useEffect(() => {
+    if (!session) return
     supabase
       .from(mapTable)
       .select(mapNodeField)
@@ -71,7 +75,7 @@ export default function GenericTreeAssignPage({
         }
         setChecked((data as any[])?.map(r => r[mapNodeField]) ?? [])
       })
-  }, [targetId, mapTable, mapTargetField, mapNodeField])
+  }, [targetId, mapTable, mapTargetField, mapNodeField, session])
 
   const childrenMap = useMemo(() => {
     const map: Record<string, string[]> = {}

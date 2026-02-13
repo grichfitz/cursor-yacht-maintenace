@@ -1,11 +1,13 @@
 import { useNavigate, useParams } from "react-router-dom"
 import { useEffect, useState } from "react"
 import { supabase } from "../lib/supabase"
+import { useSession } from "../auth/SessionProvider"
 import React from "react";
 
 export default function YachtDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { session } = useSession()
 
   const [name, setName] = useState("")
   const [makeModel, setMakeModel] = useState("")
@@ -16,6 +18,7 @@ export default function YachtDetailPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!session) return
     if (!id) return
 
     supabase
@@ -29,7 +32,7 @@ export default function YachtDetailPage() {
         setMakeModel(data.make_model ?? "")
         setLocation(data.location ?? "")
       })
-  }, [id])
+  }, [id, session])
 
   const save = async () => {
     if (!id) return

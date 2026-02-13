@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import React from "react";
 import { useIsAdmin } from "../hooks/useIsAdmin"
+import { useSession } from "../auth/SessionProvider"
 
 /* ---------- Types ---------- */
 
@@ -27,6 +28,7 @@ type TaskRow = {
 export default function TaskDetailPage() {
   const { taskId } = useParams<{ taskId: string }>();
   const navigate = useNavigate();
+  const { session } = useSession()
   const { isAdmin } = useIsAdmin()
 
   const [name, setName] = useState("");
@@ -47,6 +49,7 @@ export default function TaskDetailPage() {
   /* ---------- Load task ---------- */
 
   useEffect(() => {
+    if (!session) return
     if (!taskId) return;
 
     supabase
@@ -63,9 +66,10 @@ export default function TaskDetailPage() {
         setUnitId(row.default_unit_of_measure_id);
         setPeriodId(row.default_period_id);
       });
-  }, [taskId]);
+  }, [taskId, session]);
 
   useEffect(() => {
+    if (!session) return
     if (!taskId) return
 
     const checkInUse = async () => {
@@ -80,11 +84,12 @@ export default function TaskDetailPage() {
     }
 
     checkInUse()
-  }, [taskId])
+  }, [taskId, session])
 
   /* ---------- Load dropdown data ---------- */
 
   useEffect(() => {
+    if (!session) return
     supabase.from("units_of_measure").select("id,name").then(({ data }) => {
       setUnits(data || []);
     });
@@ -92,7 +97,7 @@ export default function TaskDetailPage() {
     supabase.from("periods").select("id,name").then(({ data }) => {
       setPeriods(data || []);
     });
-  }, []);
+  }, [session]);
 
   /* ---------- Save ---------- */
 

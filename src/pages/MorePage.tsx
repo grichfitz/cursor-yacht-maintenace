@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from "react"
 import { supabase } from "../lib/supabase"
+import { useSession } from "../auth/SessionProvider"
 
 export default function MorePage() {
+  const { session } = useSession()
   const [userLabel, setUserLabel] = useState<string>("")
 
   useEffect(() => {
+    if (!session) return
     const load = async () => {
       const {
         data: { user },
@@ -29,7 +32,7 @@ export default function MorePage() {
     }
 
     load()
-  }, [])
+  }, [session])
 
   return (
     <div className="screen">

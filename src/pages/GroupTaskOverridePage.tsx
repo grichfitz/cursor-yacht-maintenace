@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { supabase } from "../lib/supabase"
+import { useSession } from "../auth/SessionProvider"
 
 type TaskRow = {
   id: string
@@ -45,6 +46,7 @@ function pickUuidOrNull(obj: any, key: string): string | null {
 export default function GroupTaskOverridePage() {
   const navigate = useNavigate()
   const { groupId, taskId } = useParams<{ groupId: string; taskId: string }>()
+  const { session } = useSession()
 
   const [task, setTask] = useState<TaskRow | null>(null)
   const [effective, setEffective] = useState<EffectiveAssignmentRow | null>(null)
@@ -64,15 +66,17 @@ export default function GroupTaskOverridePage() {
   const [periods, setPeriods] = useState<Option[]>([])
 
   useEffect(() => {
+    if (!session) return
     supabase.from("units_of_measure").select("id,name").then(({ data }) => {
       setUnits((data as any[])?.map((d) => ({ id: d.id, name: d.name })) ?? [])
     })
     supabase.from("periods").select("id,name").then(({ data }) => {
       setPeriods((data as any[])?.map((d) => ({ id: d.id, name: d.name })) ?? [])
     })
-  }, [])
+  }, [session])
 
   useEffect(() => {
+    if (!session) return
     if (!groupId || !taskId) return
     let cancelled = false
 
@@ -182,7 +186,7 @@ export default function GroupTaskOverridePage() {
     return () => {
       cancelled = true
     }
-  }, [groupId, taskId])
+  }, [groupId, taskId, session])
 
   const inheritedName = effective?.task_name ?? task?.name ?? ""
   const inheritedDescription = effective?.task_description ?? task?.description ?? ""

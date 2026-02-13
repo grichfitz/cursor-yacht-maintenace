@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom"
 import { supabase } from "../lib/supabase"
 import TreeDisplay from "../components/TreeDisplay"
 import { useGroupTree } from "../hooks/useGroupTree"
+import { useSession } from "../auth/SessionProvider"
 
 const ROOT_ID = "__root__"
 
@@ -17,6 +18,7 @@ type GroupRow = {
 export default function GroupEditorPage() {
   const navigate = useNavigate()
   const { groupId } = useParams<{ groupId: string }>()
+  const { session } = useSession()
   const { nodes } = useGroupTree()
   const isVirtualGroup = !!groupId?.startsWith("__")
 
@@ -30,6 +32,7 @@ export default function GroupEditorPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!session) return
     if (!groupId) return
     if (groupId.startsWith("__")) {
       setLoading(false)
@@ -100,7 +103,7 @@ export default function GroupEditorPage() {
     return () => {
       cancelled = true
     }
-  }, [groupId])
+  }, [groupId, session])
 
   /* ---------- Circular move prevention ---------- */
 

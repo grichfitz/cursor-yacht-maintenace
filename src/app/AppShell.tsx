@@ -23,8 +23,9 @@ export default function AppShell({
   const navigate = useNavigate();
 
   const pathname = location.pathname;
+
   // Only highlight tabs for the primary app areas.
-  // For "editor" / assignment screens (e.g. /groups/*, /categories/*, /yachts/*),
+  // For editor / detail screens (e.g. /editor/*, /yachts/:id),
   // we leave all tabs un-highlighted (neutral grey).
   const activeTab:
     | "dashboard"
@@ -32,10 +33,10 @@ export default function AppShell({
     | "tasks"
     | "profile"
     | null =
-    pathname === "/" || pathname.startsWith("/desktop") ? "dashboard"
-    : pathname.startsWith("/apps/yachts") ? "yachts"
-    : pathname.startsWith("/apps/tasks") ? "tasks"
-    : pathname.startsWith("/profile") || pathname.startsWith("/more") ? "profile"
+    pathname === "/" || pathname.startsWith("/dashboard") ? "dashboard"
+    : pathname.startsWith("/yachts") ? "yachts"
+    : pathname.startsWith("/tasks") ? "tasks"
+    : pathname.startsWith("/profile") ? "profile"
     : null;
 
   return (
@@ -70,7 +71,7 @@ export default function AppShell({
           <button
             type="button"
             className={`tabbar-item ${activeTab === "dashboard" ? "active" : ""}`}
-            onClick={() => navigate("/desktop")}
+            onClick={() => navigate("/dashboard")}
           >
             <Home size={20} />
             <span>Dashboard</span>
@@ -78,20 +79,20 @@ export default function AppShell({
 
           <button
             type="button"
-            className={`tabbar-item ${activeTab === "yachts" ? "active" : ""}`}
-            onClick={() => navigate("/apps/yachts")}
+            className={`tabbar-item ${activeTab === "tasks" ? "active" : ""}`}
+            onClick={() => navigate("/tasks")}
           >
-            <Ship size={20} />
-            <span>Yachts</span>
+            <CheckSquare size={20} />
+            <span>My Tasks</span>
           </button>
 
           <button
             type="button"
-            className={`tabbar-item ${activeTab === "tasks" ? "active" : ""}`}
-            onClick={() => navigate("/apps/tasks")}
+            className={`tabbar-item ${activeTab === "yachts" ? "active" : ""}`}
+            onClick={() => navigate("/yachts")}
           >
-            <CheckSquare size={20} />
-            <span>Tasks</span>
+            <Ship size={20} />
+            <span>Yachts</span>
           </button>
 
           <button

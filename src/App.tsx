@@ -1,41 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { supabase } from "./lib/supabase";
 import React from "react";
+
 import AppShell from "./app/AppShell";
 import LoginPage from "./pages/LoginPage";
 import AppRoutes from "./app/routes";
-
-
+import { useSession } from "./auth/SessionProvider";
 
 export default function App() {
-  const [loading, setLoading] = useState(true);
-  const [session, setSession] = useState<any>(null);
+  const { session, loading } = useSession();
 
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoading(false);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  // ✅ ONLY redirect after login if we're still on "/"
-  useEffect(() => {
-    if (session && location.pathname === "/") {
-      navigate("/desktop", { replace: true });
+    if (!loading && session && location.pathname === "/") {
+      navigate("/dashboard", { replace: true });
     }
-  }, [session, location.pathname, navigate]);
+  }, [session, loading, location.pathname, navigate]);
 
   if (loading) {
     return (
