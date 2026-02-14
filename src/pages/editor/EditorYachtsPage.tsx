@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 import EditorNav from "./EditorNav"
 import { useSession } from "../../auth/SessionProvider"
@@ -9,31 +10,17 @@ type YachtRow = { id: string; name: string; group_id: string }
 
 export default function EditorYachtsPage() {
   const { session } = useSession()
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const [groups, setGroups] = useState<GroupRow[]>([])
   const [yachts, setYachts] = useState<YachtRow[]>([])
-
-  const [newName, setNewName] = useState("")
-  const [newGroupId, setNewGroupId] = useState("")
-  const [creating, setCreating] = useState(false)
-
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editName, setEditName] = useState("")
-  const [editGroupId, setEditGroupId] = useState("")
-  const [saving, setSaving] = useState(false)
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined)
 
   const groupById = useMemo(() => {
     const m = new Map<string, GroupRow>()
     groups.forEach((g) => m.set(g.id, g))
-    return m
-  }, [groups])
-
-  const groupNameById = useMemo(() => {
-    const m = new Map<string, string>()
-    groups.forEach((g) => m.set(g.id, g.name))
     return m
   }, [groups])
 
@@ -201,73 +188,6 @@ export default function EditorYachtsPage() {
     }
   }, [session])
 
-  const create = async () => {
-    const trimmed = newName.trim()
-    if (!trimmed || !newGroupId) return
-    setCreating(true)
-    setError(null)
-
-    const { error: insErr } = await supabase.from("yachts").insert({
-      name: trimmed,
-      group_id: newGroupId,
-    })
-
-    if (insErr) {
-      setError(insErr.message)
-      setCreating(false)
-      return
-    }
-
-    setNewName("")
-    setNewGroupId("")
-    setCreating(false)
-    await load()
-  }
-
-  const startEdit = (y: YachtRow) => {
-    setEditingId(y.id)
-    setEditName(y.name)
-    setEditGroupId(y.group_id)
-    setSelectedId(`y:${y.id}`)
-  }
-
-  const save = async () => {
-    if (!editingId) return
-    const trimmed = editName.trim()
-    if (!trimmed || !editGroupId) return
-
-    setSaving(true)
-    setError(null)
-
-    const { error: upErr } = await supabase
-      .from("yachts")
-      .update({ name: trimmed, group_id: editGroupId })
-      .eq("id", editingId)
-
-    if (upErr) {
-      setError(upErr.message)
-      setSaving(false)
-      return
-    }
-
-    setSaving(false)
-    setEditingId(null)
-    await load()
-  }
-
-  const del = async (id: string) => {
-    const ok = window.confirm("Delete this yacht? This cannot be undone.")
-    if (!ok) return
-
-    setError(null)
-    const { error: delErr } = await supabase.from("yachts").delete().eq("id", id)
-    if (delErr) {
-      setError(delErr.message)
-      return
-    }
-    await load()
-  }
-
   if (loading) return <div className="screen">Loading…</div>
 
   return (
@@ -283,84 +203,15 @@ export default function EditorYachtsPage() {
       )}
 
       <div className="card">
-        <div style={{ fontWeight: 800, marginBottom: 10 }}>Create yacht</div>
-        <label>Name:</label>
-        <input
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          style={{ marginBottom: 12 }}
-          disabled={creating}
-        />
-        <label>Group:</label>
-        <select
-          value={newGroupId}
-          onChange={(e) => setNewGroupId(e.target.value)}
-          style={{ marginBottom: 12 }}
-          disabled={creating}
-        >
-          <option value="">Select group…</option>
-          {orderedGroups.map(({ g }) => (
-            <option key={g.id} value={g.id}>
-              {formatTreeLabel(g)}
-            </option>
-          ))}
-        </select>
-
         <button
           type="button"
-          className="cta-button"
-          onClick={create}
-          disabled={creating || !newName.trim() || !newGroupId}
-          style={{ opacity: creating || !newName.trim() || !newGroupId ? 0.6 : 1 }}
+          className="secondary"
+          style={{ width: "100%" }}
+          onClick={() => navigate("/editor/yachts/new")}
         >
-          {creating ? "Creating…" : "Create"}
+          New yacht
         </button>
       </div>
-
-      {editingId ? (
-        <div className="card">
-          <div style={{ fontWeight: 800, marginBottom: 10 }}>Edit yacht</div>
-          <label>Name:</label>
-          <input
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-            style={{ marginBottom: 10 }}
-            disabled={saving}
-          />
-          <label>Group:</label>
-          <select
-            value={editGroupId}
-            onChange={(e) => setEditGroupId(e.target.value)}
-            style={{ marginBottom: 12 }}
-            disabled={saving}
-          >
-            <option value="">Select group…</option>
-            {orderedGroups.map(({ g }) => (
-              <option key={g.id} value={g.id}>
-                {formatTreeLabel(g)}
-              </option>
-            ))}
-          </select>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button
-              type="button"
-              onClick={save}
-              disabled={saving || !editName.trim() || !editGroupId}
-              style={{ opacity: saving || !editName.trim() || !editGroupId ? 0.6 : 1 }}
-            >
-              {saving ? "Saving…" : "Save"}
-            </button>
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => setEditingId(null)}
-              disabled={saving}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : null}
 
       <div className="card">
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
@@ -382,16 +233,8 @@ export default function EditorYachtsPage() {
               const y = node.meta as YachtRow
               return (
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button type="button" className="secondary" onClick={() => startEdit(y)}>
+                  <button type="button" className="secondary" onClick={() => navigate(`/editor/yachts/${y.id}`)}>
                     Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => del(y.id)}
-                    style={{ color: "var(--accent-red)" }}
-                  >
-                    Delete
                   </button>
                 </div>
               )

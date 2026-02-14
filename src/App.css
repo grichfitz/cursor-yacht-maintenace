@@ -494,6 +494,52 @@ select:focus {
 .desktop-app:active .desktop-app-icon {
   opacity: 0.75;
 }
+
+/* ---------- Dashboard quick links (icon + label) ---------- */
+
+.quicklinks-grid {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.quicklink {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--text-primary);
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 78px;
+}
+
+.quicklink:active .quicklink-icon {
+  opacity: 0.75;
+}
+
+.quicklink-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-teal));
+  box-shadow: 0 10px 22px rgba(10, 132, 255, 0.20);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.quicklink-label {
+  font-size: 12px;
+  line-height: 1;
+  text-align: center;
+}
+
+/* (Editor nav now uses icon buttons; no dropdowns.) */
+
 /* ============================= */
 /* TreeDisplay (core UI primitive) */
 /* ============================= */

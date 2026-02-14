@@ -6,6 +6,7 @@ import EditorNav from "./editor/EditorNav"
 
 type UserRow = {
   id: string
+  display_name: string | null
   email: string | null
   role: string | null
 }
@@ -32,7 +33,7 @@ export default function UsersPage() {
     setError(null)
 
     const [{ data: u, error: uErr }, { data: links, error: lErr }] = await Promise.all([
-      supabase.from("users").select("id,email,role").order("email"),
+      supabase.from("users").select("id,display_name,email,role").order("display_name"),
       supabase.from("user_group_links").select("user_id,group_id"),
     ])
 
@@ -46,6 +47,7 @@ export default function UsersPage() {
 
     const rows = ((u as any[]) ?? []).map((r) => ({
       id: String(r.id),
+      display_name: (r.display_name ?? null) as string | null,
       email: (r.email ?? null) as string | null,
       role: (r.role ?? null) as string | null,
     })) as UserRow[]
@@ -78,7 +80,10 @@ export default function UsersPage() {
   const filteredUsers = useMemo(() => {
     const q = filter.trim().toLowerCase()
     if (!q) return users
-    return users.filter((u) => String(u.email || u.id).toLowerCase().includes(q))
+    return users.filter((u) => {
+      const hay = `${u.display_name ?? ""} ${u.email ?? ""} ${u.id}`.toLowerCase()
+      return hay.includes(q)
+    })
   }, [users, filter])
 
   if (loading) return <div className="screen">Loading…</div>
@@ -93,12 +98,18 @@ export default function UsersPage() {
         <div style={{ color: "var(--accent-red)", marginBottom: 10, fontSize: 13 }}>{error}</div>
       )}
 
+      <div className="card">
+        <button type="button" className="secondary" style={{ width: "100%" }} onClick={() => navigate("/users/new")}>
+          New user
+        </button>
+      </div>
+
       <div className="card" style={{ paddingBottom: 14 }}>
         <div style={{ fontWeight: 800, marginBottom: 10 }}>Directory</div>
         <input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter by email…"
+          placeholder="Filter by name or email…"
           style={{ width: "100%" }}
         />
       </div>
@@ -116,9 +127,12 @@ export default function UsersPage() {
             <div key={u.id} style={{ borderTop: "1px solid rgba(0,0,0,0.06)" }}>
               <div className="list-row" style={{ justifyContent: "space-between", gap: 10 }}>
                 <div style={{ display: "flex", flexDirection: "column" }}>
-                  <div style={{ fontWeight: 700 }}>{u.email || u.id}</div>
+                  <div style={{ fontWeight: 700 }}>{u.display_name || u.email || u.id}</div>
                   <div style={{ fontSize: 12, opacity: 0.75 }}>
-                    {String(u.role || "crew") + ` · ${groupCountByUserId[u.id] ?? 0} groups`}
+                    {(u.email ? u.email : "") +
+                      (u.email ? " · " : "") +
+                      String(u.role || "crew") +
+                      ` · ${groupCountByUserId[u.id] ?? 0} groups`}
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>

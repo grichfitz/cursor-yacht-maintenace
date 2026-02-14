@@ -8,6 +8,10 @@ type YachtRow = {
   id: string
   name: string
   group_id: string
+  make_model: string | null
+  location: string | null
+  photo_url: string | null
+  latest_engineer_hours: number | null
 }
 
 type TaskInstanceRow = {
@@ -41,17 +45,23 @@ type AssignmentRow = {
   assigned_at: string
 }
 
-function StatusPill({ status }: { status: TaskInstanceRow["status"] }) {
+function StatusPill({ status }: { status: TaskInstanceRow["status"] | string | null | undefined }) {
   const cfg = useMemo(() => {
     switch (status) {
       case "pending":
-        return { bg: "rgba(110,110,115,0.12)", fg: "rgba(60,60,67,0.95)" }
+        return { bg: "rgba(110,110,115,0.12)", fg: "rgba(60,60,67,0.95)", label: "Pending" }
       case "assigned":
-        return { bg: "rgba(10,132,255,0.14)", fg: "rgba(10,132,255,0.95)" }
+        return { bg: "rgba(10,132,255,0.14)", fg: "rgba(10,132,255,0.95)", label: "Assigned" }
       case "completed":
-        return { bg: "rgba(52,199,89,0.14)", fg: "rgba(28,110,50,1)" }
+        return { bg: "rgba(52,199,89,0.14)", fg: "rgba(28,110,50,1)", label: "Completed" }
       case "verified":
-        return { bg: "rgba(34,199,184,0.16)", fg: "rgba(10,140,130,1)" }
+        return { bg: "rgba(34,199,184,0.16)", fg: "rgba(10,140,130,1)", label: "Verified" }
+      default: {
+        const raw = typeof status === "string" ? status : ""
+        const pretty = raw ? raw.replace(/_/g, " ") : "Unknown"
+        const label = pretty ? pretty.charAt(0).toUpperCase() + pretty.slice(1) : "Unknown"
+        return { bg: "rgba(110,110,115,0.12)", fg: "rgba(60,60,67,0.95)", label }
+      }
     }
   }, [status])
 
@@ -68,7 +78,7 @@ function StatusPill({ status }: { status: TaskInstanceRow["status"] }) {
         whiteSpace: "nowrap",
       }}
     >
-      {status}
+      {cfg.label}
     </span>
   )
 }
@@ -91,6 +101,7 @@ export default function YachtPage() {
   const [newTemplateId, setNewTemplateId] = useState<string>("")
   const [dueAt, setDueAt] = useState<string>("")
   const [creating, setCreating] = useState(false)
+  const [showCreate, setShowCreate] = useState(false)
 
   // Manager/Admin: assignees limited to yacht's group members
   const [assignees, setAssignees] = useState<UserRow[]>([])
@@ -98,6 +109,7 @@ export default function YachtPage() {
   const [assignTo, setAssignTo] = useState<string>("")
   const [savingAssign, setSavingAssign] = useState(false)
   const [savingVerify, setSavingVerify] = useState<string | null>(null)
+  const [takingId, setTakingId] = useState<string | null>(null)
 
   const canAssign = role === "admin" || role === "manager"
   const canVerify = role === "admin" || role === "manager"
@@ -150,7 +162,7 @@ export default function YachtPage() {
 
       const { data: yachtRow, error: yErr } = await supabase
         .from("yachts")
-        .select("id,name,group_id")
+        .select("id,name,group_id,make_model,location,photo_url,latest_engineer_hours")
         .eq("id", yachtId)
         .in("group_id", groupIds)
         .maybeSingle()
@@ -208,7 +220,7 @@ export default function YachtPage() {
 
     const { data: yachtRow, error: yErr } = await supabase
       .from("yachts")
-      .select("id,name,group_id")
+      .select("id,name,group_id,make_model,location,photo_url,latest_engineer_hours")
       .eq("id", yachtId)
       .single()
 
@@ -409,6 +421,54 @@ export default function YachtPage() {
     await load()
   }
 
+  const takeOwnership = async (taskInstanceId: string) => {
+    setTakingId(taskInstanceId)
+    setError(null)
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      setError("Not signed in.")
+      setTakingId(null)
+      return
+    }
+
+    // Insert assignment to self (unassigned tasks only; unique constraint will block if taken)
+    const { error: insErr } = await supabase.from("task_assignments").insert({
+      task_instance_id: taskInstanceId,
+      assigned_to: user.id,
+      assigned_by: user.id,
+    })
+
+    if (insErr) {
+      // If someone else already took it, just reload.
+      const msg = String(insErr.message || "")
+      const isUnique = insErr.code === "23505" || msg.toLowerCase().includes("duplicate") || msg.toLowerCase().includes("unique")
+      if (!isUnique) {
+        setError(insErr.message)
+        setTakingId(null)
+        return
+      }
+    }
+
+    // Mark instance assigned (RLS/trigger will enforce self-assignment)
+    const { error: upErr } = await supabase
+      .from("task_instances")
+      .update({ status: "assigned" })
+      .eq("id", taskInstanceId)
+
+    if (upErr) {
+      setError(upErr.message)
+      setTakingId(null)
+      return
+    }
+
+    setTakingId(null)
+    await load()
+  }
+
   const verify = async (taskInstanceId: string) => {
     setSavingVerify(taskInstanceId)
     setError(null)
@@ -492,6 +552,40 @@ export default function YachtPage() {
       </div>
       <div className="screen-subtitle">Operational tasks for this yacht.</div>
 
+      <div className="card" style={{ paddingBottom: 12 }}>
+        <div style={{ fontWeight: 800, marginBottom: 8 }}>Yacht info</div>
+        {yacht.photo_url ? (
+          <img
+            src={yacht.photo_url}
+            alt=""
+            style={{
+              width: "100%",
+              height: 160,
+              objectFit: "cover",
+              borderRadius: 14,
+              border: "1px solid var(--border-subtle)",
+              marginBottom: 10,
+            }}
+          />
+        ) : null}
+        <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+          <div>
+            <strong style={{ color: "var(--text-primary)" }}>Make / model:</strong>{" "}
+            {yacht.make_model || "—"}
+          </div>
+          <div>
+            <strong style={{ color: "var(--text-primary)" }}>Location:</strong>{" "}
+            {yacht.location || "—"}
+          </div>
+          {typeof yacht.latest_engineer_hours === "number" ? (
+            <div>
+              <strong style={{ color: "var(--text-primary)" }}>Engineer hours:</strong>{" "}
+              {yacht.latest_engineer_hours}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
       {error && (
         <div style={{ color: "var(--accent-red)", marginBottom: 10, fontSize: 13 }}>
           {error}
@@ -499,7 +593,20 @@ export default function YachtPage() {
       )}
 
       {canCreateInstances ? (
-        <div className="card">
+        <div className="card" style={{ paddingBottom: 14 }}>
+          <div style={{ fontWeight: 800, marginBottom: 8 }}>New task instance</div>
+          <button
+            type="button"
+            className="cta-button"
+            onClick={() => setShowCreate((v) => !v)}
+          >
+            {showCreate ? "Hide" : "Create new task instance"}
+          </button>
+        </div>
+      ) : null}
+
+      {canCreateInstances ? (
+        <div className="card" style={{ display: showCreate ? "block" : "none" }}>
           <div style={{ fontWeight: 800, marginBottom: 10 }}>Create task instance</div>
           <label>Task:</label>
           <select
@@ -552,6 +659,7 @@ export default function YachtPage() {
             const a = assignments.get(t.id)
             const showAssign = canAssign && t.status === "pending"
             const showVerify = canVerify && t.status === "completed"
+            const showTake = role === "crew" && t.status === "pending"
 
             return (
               <div key={t.id} style={{ borderTop: "1px solid rgba(0,0,0,0.06)" }}>
@@ -567,7 +675,7 @@ export default function YachtPage() {
                     </div>
                     <div className="list-button-subtitle">
                       {t.due_at ? `Due ${new Date(t.due_at).toLocaleDateString()}` : "No due date"}
-                      {a ? ` · Assigned` : ""}
+                      {t.status === "assigned" || a ? ` · Assigned` : ""}
                     </div>
                   </div>
                   <div className="list-button-chevron">›</div>
@@ -621,6 +729,20 @@ export default function YachtPage() {
                         </button>
                       </div>
                     )}
+                  </div>
+                ) : null}
+
+                {showTake ? (
+                  <div style={{ padding: "0 12px 12px" }}>
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() => takeOwnership(t.id)}
+                      disabled={takingId === t.id}
+                      style={{ opacity: takingId === t.id ? 0.6 : 1 }}
+                    >
+                      {takingId === t.id ? "Taking…" : "Take"}
+                    </button>
                   </div>
                 ) : null}
 

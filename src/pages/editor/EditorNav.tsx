@@ -1,19 +1,24 @@
-import React from "react"
+import React, { useMemo } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
+import { CheckSquare, Folder, Ship, Tag, User } from "lucide-react"
 
-type Item = { label: string; to: string }
+type Section = { label: string; to: string; match: (pathname: string) => boolean }
 
-const items: Item[] = [
-  { label: "Yachts", to: "/editor/yachts" },
-  { label: "Groups", to: "/editor/groups" },
-  { label: "Categories", to: "/editor/categories" },
-  { label: "Tasks", to: "/editor/task-templates" },
-  { label: "Users", to: "/users" },
+const sections: Section[] = [
+  { label: "Yachts", to: "/editor/yachts", match: (p) => p.startsWith("/editor/yachts") },
+  { label: "Groups", to: "/editor/groups", match: (p) => p.startsWith("/editor/groups") },
+  { label: "Categories", to: "/editor/categories", match: (p) => p.startsWith("/editor/categories") },
+  { label: "Tasks", to: "/editor/task-templates", match: (p) => p.startsWith("/editor/task-templates") },
+  { label: "Users", to: "/users", match: (p) => p.startsWith("/users") },
 ]
 
 export default function EditorNav() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
+
+  const sectionTo = useMemo(() => {
+    return sections.find((s) => s.match(pathname))?.to ?? "/editor/yachts"
+  }, [pathname])
 
   return (
     <div
@@ -23,30 +28,109 @@ export default function EditorNav() {
         flexWrap: "wrap",
         marginBottom: 10,
         marginTop: -6,
+        alignItems: "center",
       }}
     >
       <button type="button" className="primary-button" onClick={() => navigate(-1)}>
         ← Back
       </button>
 
-      {items.map((i) => {
-        const active = pathname.startsWith(i.to)
-        return (
-          <button
-            key={i.to}
-            type="button"
-            className="primary-button"
-            onClick={() => navigate(i.to)}
-            style={{
-              background: active ? "rgba(10, 132, 255, 0.14)" : "rgba(0, 0, 0, 0.06)",
-              borderColor: active ? "rgba(10, 132, 255, 0.22)" : "rgba(0, 0, 0, 0.06)",
-              color: "var(--text-primary)",
-            }}
-          >
-            {i.label}
-          </button>
-        )
-      })}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button
+          type="button"
+          className="primary-button"
+          aria-label="Editor · Yachts"
+          title="Yachts"
+          onClick={() => navigate("/editor/yachts")}
+          style={{
+            background:
+              sectionTo === "/editor/yachts" ? "rgba(10, 132, 255, 0.14)" : "rgba(0, 0, 0, 0.06)",
+            borderColor:
+              sectionTo === "/editor/yachts" ? "rgba(10, 132, 255, 0.22)" : "rgba(0, 0, 0, 0.06)",
+            width: 44,
+            height: 34,
+            padding: 0,
+          }}
+        >
+          <Ship size={18} />
+        </button>
+
+        <button
+          type="button"
+          className="primary-button"
+          aria-label="Editor · Groups"
+          title="Groups"
+          onClick={() => navigate("/editor/groups")}
+          style={{
+            background:
+              sectionTo === "/editor/groups" ? "rgba(10, 132, 255, 0.14)" : "rgba(0, 0, 0, 0.06)",
+            borderColor:
+              sectionTo === "/editor/groups" ? "rgba(10, 132, 255, 0.22)" : "rgba(0, 0, 0, 0.06)",
+            width: 44,
+            height: 34,
+            padding: 0,
+          }}
+        >
+          <Folder size={18} />
+        </button>
+
+        <button
+          type="button"
+          className="primary-button"
+          aria-label="Editor · Categories"
+          title="Categories"
+          onClick={() => navigate("/editor/categories")}
+          style={{
+            background:
+              sectionTo === "/editor/categories" ? "rgba(10, 132, 255, 0.14)" : "rgba(0, 0, 0, 0.06)",
+            borderColor:
+              sectionTo === "/editor/categories" ? "rgba(10, 132, 255, 0.22)" : "rgba(0, 0, 0, 0.06)",
+            width: 44,
+            height: 34,
+            padding: 0,
+          }}
+        >
+          <Tag size={18} />
+        </button>
+
+        <button
+          type="button"
+          className="primary-button"
+          aria-label="Editor · Tasks"
+          title="Tasks"
+          onClick={() => navigate("/editor/task-templates")}
+          style={{
+            background:
+              sectionTo === "/editor/task-templates" ? "rgba(10, 132, 255, 0.14)" : "rgba(0, 0, 0, 0.06)",
+            borderColor:
+              sectionTo === "/editor/task-templates" ? "rgba(10, 132, 255, 0.22)" : "rgba(0, 0, 0, 0.06)",
+            width: 44,
+            height: 34,
+            padding: 0,
+          }}
+        >
+          <CheckSquare size={18} />
+        </button>
+
+        <button
+          type="button"
+          className="primary-button"
+          aria-label="Editor · Users"
+          title="Users"
+          onClick={() => navigate("/users")}
+          style={{
+            background:
+              sectionTo === "/users" ? "rgba(10, 132, 255, 0.14)" : "rgba(0, 0, 0, 0.06)",
+            borderColor:
+              sectionTo === "/users" ? "rgba(10, 132, 255, 0.22)" : "rgba(0, 0, 0, 0.06)",
+            width: 44,
+            height: 34,
+            padding: 0,
+          }}
+        >
+          <User size={18} />
+        </button>
+      </div>
     </div>
   )
 }

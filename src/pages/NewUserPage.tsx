@@ -119,7 +119,7 @@ export default function NewUserPage() {
       }
 
       // Replace New User page in history so Back goes to users list.
-      navigate(`/apps/users/${newId}`, { replace: true })
+      navigate(`/users/${newId}`, { replace: true })
     } catch (e: any) {
       setSaving(false)
       setError(

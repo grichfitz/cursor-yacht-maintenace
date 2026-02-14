@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
+import { BarChart2, CheckSquare, Ship, Wrench } from "lucide-react"
 import { supabase } from "../lib/supabase"
 import { useMyRole } from "../hooks/useMyRole"
 import { useSession } from "../auth/SessionProvider"
@@ -148,22 +149,36 @@ export default function DashboardPage() {
       <div className="screen-title">Dashboard</div>
 
       <div className="card">
-        <div style={{ fontWeight: 800, marginBottom: 10 }}>Quick links</div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button type="button" className="secondary" onClick={() => navigate("/tasks")}>
-            Tasks
+        <div className="quicklinks-grid">
+          <button type="button" className="quicklink" onClick={() => navigate("/tasks")}>
+            <div className="quicklink-icon" aria-hidden="true">
+              <CheckSquare size={22} />
+            </div>
+            <div className="quicklink-label">My Tasks</div>
           </button>
-          <button type="button" className="secondary" onClick={() => navigate("/yachts")}>
-            Yachts
+
+          <button type="button" className="quicklink" onClick={() => navigate("/yachts")}>
+            <div className="quicklink-icon" aria-hidden="true">
+              <Ship size={22} />
+            </div>
+            <div className="quicklink-label">Yachts</div>
           </button>
+
           {(role === "manager" || role === "admin") && (
-            <button type="button" className="secondary" onClick={() => navigate("/reports")}>
-              Reports
+            <button type="button" className="quicklink" onClick={() => navigate("/reports")}>
+              <div className="quicklink-icon" aria-hidden="true">
+                <BarChart2 size={22} />
+              </div>
+              <div className="quicklink-label">Reports</div>
             </button>
           )}
+
           {role === "admin" && (
-            <button type="button" className="secondary" onClick={() => navigate("/editor")}>
-              Editor
+            <button type="button" className="quicklink" onClick={() => navigate("/editor")}>
+              <div className="quicklink-icon" aria-hidden="true">
+                <Wrench size={22} />
+              </div>
+              <div className="quicklink-label">Editor</div>
             </button>
           )}
         </div>

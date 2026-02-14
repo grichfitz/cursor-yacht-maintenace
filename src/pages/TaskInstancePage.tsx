@@ -14,6 +14,13 @@ type TaskInstanceRow = {
   template_description: string | null
 }
 
+type YachtRow = {
+  id: string
+  name: string
+  make_model: string | null
+  location: string | null
+}
+
 type AssignmentRow = {
   task_instance_id: string
   assigned_to: string
@@ -28,6 +35,7 @@ export default function TaskInstancePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [row, setRow] = useState<TaskInstanceRow | null>(null)
+  const [yacht, setYacht] = useState<YachtRow | null>(null)
   const [assignedToMe, setAssignedToMe] = useState(false)
 
   const [notes, setNotes] = useState("")
@@ -52,6 +60,7 @@ export default function TaskInstancePage() {
 
     if (!user) {
       setRow(null)
+      setYacht(null)
       setLoading(false)
       return
     }
@@ -65,8 +74,22 @@ export default function TaskInstancePage() {
     if (loadErr) {
       setError(loadErr.message)
       setRow(null)
+      setYacht(null)
       setLoading(false)
       return
+    }
+
+    // Load the yacht for context (name/make/location).
+    const { data: yRow, error: yErr } = await supabase
+      .from("yachts")
+      .select("id,name,make_model,location")
+      .eq("id", (data as TaskInstanceRow).yacht_id)
+      .maybeSingle()
+
+    if (!yErr) {
+      setYacht((yRow as YachtRow) ?? null)
+    } else {
+      setYacht(null)
     }
 
     const { data: assignmentRows, error: aErr } = await supabase
@@ -78,6 +101,7 @@ export default function TaskInstancePage() {
     if (aErr) {
       setError(aErr.message)
       setRow(data as TaskInstanceRow)
+      // Keep yacht context if it loaded.
       setAssignedToMe(false)
       setLoading(false)
       return
@@ -240,6 +264,27 @@ export default function TaskInstancePage() {
               {row.template_description}
             </div>
           ) : null}
+
+          <div className="card">
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>Yacht</div>
+            {yacht ? (
+              <button
+                type="button"
+                className="list-button"
+                onClick={() => navigate(`/yachts/${yacht.id}`)}
+              >
+                <div className="list-button-main">
+                  <div className="list-button-title">{yacht.name}</div>
+                  <div className="list-button-subtitle">
+                    {[yacht.make_model || null, yacht.location || null].filter(Boolean).join(" · ") || "—"}
+                  </div>
+                </div>
+                <div className="list-button-chevron">›</div>
+              </button>
+            ) : (
+              <div style={{ fontSize: 13, opacity: 0.75 }}>—</div>
+            )}
+          </div>
 
           <div className="card">
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>

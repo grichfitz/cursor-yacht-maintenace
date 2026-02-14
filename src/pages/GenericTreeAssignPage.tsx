@@ -2,13 +2,14 @@ import React from "react"
 import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import TreeDisplay from "../components/TreeDisplay"
+import type { TreeNode } from "../components/TreeDisplay"
 import { Pencil } from "lucide-react"
 import { supabase } from "../lib/supabase"
 import { useSession } from "../auth/SessionProvider"
 
 type Props = {
   targetId: string
-  nodes: { id: string; parentId: string | null; label: string }[]
+  nodes: TreeNode[]
   mapTable: string
   mapTargetField: string
   mapNodeField: string
@@ -105,6 +106,10 @@ export default function GenericTreeAssignPage({
     }
     
     const shouldCheck = !checked.includes(id)
+    const autoAssignChildrenOnCheck = isUserGroupAssignment && !useRadioButtons
+    const idsToCheck = shouldCheck && autoAssignChildrenOnCheck
+      ? Array.from(new Set([id, ...getDescendants(id)].filter((x) => !String(x).startsWith("__"))))
+      : [id]
 
     setLoading(id)
     
@@ -118,10 +123,14 @@ export default function GenericTreeAssignPage({
         setChecked([])
       }
     } else {
-      // Checkbox mode: toggle this item (original behavior)
-      setChecked(prev =>
-        shouldCheck ? [...prev, id] : prev.filter(x => x !== id)
-      )
+      // Checkbox mode
+      setChecked((prev) => {
+        if (!shouldCheck) return prev.filter((x) => x !== id)
+        if (!autoAssignChildrenOnCheck) return [...prev, id]
+        const next = new Set(prev)
+        idsToCheck.forEach((x) => next.add(x))
+        return Array.from(next)
+      })
     }
 
     if (shouldCheck) {
@@ -198,14 +207,20 @@ export default function GenericTreeAssignPage({
         }
       } else {
         // Standard many-to-many upsert
-        const { error } = await supabase.from(mapTable).upsert({
-          [mapTargetField]: targetId,
-          [mapNodeField]: id
-        })
-        
+        const payload = autoAssignChildrenOnCheck
+          ? idsToCheck.map((gid) => ({ [mapTargetField]: targetId, [mapNodeField]: gid }))
+          : [{ [mapTargetField]: targetId, [mapNodeField]: id }]
+
+        const { error } = await supabase.from(mapTable).upsert(payload)
+
         if (error) {
           console.error("Error upserting assignment:", error)
-          setChecked(prev => prev.filter(x => x !== id))
+          // Resync from DB so UI matches server state
+          const { data: reloadData } = await supabase
+            .from(mapTable)
+            .select(mapNodeField)
+            .eq(mapTargetField, targetId)
+          setChecked((reloadData as any[])?.map((r) => r[mapNodeField]) ?? [])
         }
       }
     } else {
@@ -239,7 +254,7 @@ export default function GenericTreeAssignPage({
         
         if (error) {
           console.error("Error deleting assignment:", error)
-          setChecked(prev => [...prev, id])
+          setChecked((prev) => [...prev, id])
         }
       }
     }

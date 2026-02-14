@@ -20,6 +20,15 @@ import EditorCategoriesPage from "../pages/editor/EditorCategoriesPage"
 import EditorTaskTemplatesPage from "../pages/editor/EditorTaskTemplatesPage"
 import EditorUserGroupsPage from "../pages/editor/EditorUserGroupsPage"
 import EditorUserPage from "../pages/editor/EditorUserPage"
+import EditorNewYachtPage from "../pages/editor/EditorNewYachtPage"
+import EditorNewGroupPage from "../pages/editor/EditorNewGroupPage"
+import EditorNewCategoryPage from "../pages/editor/EditorNewCategoryPage"
+import EditorNewTaskTemplatePage from "../pages/editor/EditorNewTaskTemplatePage"
+import EditorEditYachtPage from "../pages/editor/EditorEditYachtPage"
+import EditorEditGroupPage from "../pages/editor/EditorEditGroupPage"
+import EditorEditCategoryPage from "../pages/editor/EditorEditCategoryPage"
+import EditorEditTaskTemplatePage from "../pages/editor/EditorEditTaskTemplatePage"
+import NewUserPage from "../pages/NewUserPage"
 
 function EditorRoute({ children }: { children: React.ReactNode }) {
   return <RequireRole allow={["admin"]}>{children}</RequireRole>
@@ -47,6 +56,7 @@ export default function AppRoutes() {
       <Route path="/apps/reports" element={<Navigate to="/reports" replace />} />
       <Route path="/apps/groups" element={<Navigate to="/editor/groups" replace />} />
       <Route path="/apps/categories" element={<Navigate to="/editor/categories" replace />} />
+      <Route path="/assigments" element={<Navigate to="/assignments" replace />} />
 
       <Route path="/tasks" element={<TasksPage />} />
       <Route path="/tasks/:taskInstanceId" element={<TaskInstancePage />} />
@@ -93,6 +103,14 @@ export default function AppRoutes() {
         }
       />
       <Route
+        path="/users/new"
+        element={
+          <EditorRoute>
+            <NewUserPage />
+          </EditorRoute>
+        }
+      />
+      <Route
         path="/users/:userId"
         element={
           <EditorRoute>
@@ -112,10 +130,42 @@ export default function AppRoutes() {
       {/* Admin-only Editor */}
       <Route path="/editor" element={<Navigate to="/editor/yachts" replace />} />
       <Route
+        path="/editor/yachts/new"
+        element={
+          <EditorRoute>
+            <EditorNewYachtPage />
+          </EditorRoute>
+        }
+      />
+      <Route
+        path="/editor/yachts/:yachtId"
+        element={
+          <EditorRoute>
+            <EditorEditYachtPage />
+          </EditorRoute>
+        }
+      />
+      <Route
         path="/editor/yachts"
         element={
           <EditorRoute>
             <EditorYachtsPage />
+          </EditorRoute>
+        }
+      />
+      <Route
+        path="/editor/groups/new"
+        element={
+          <EditorRoute>
+            <EditorNewGroupPage />
+          </EditorRoute>
+        }
+      />
+      <Route
+        path="/editor/groups/:groupId"
+        element={
+          <EditorRoute>
+            <EditorEditGroupPage />
           </EditorRoute>
         }
       />
@@ -128,10 +178,42 @@ export default function AppRoutes() {
         }
       />
       <Route
+        path="/editor/categories/new"
+        element={
+          <EditorRoute>
+            <EditorNewCategoryPage />
+          </EditorRoute>
+        }
+      />
+      <Route
+        path="/editor/categories/:categoryId"
+        element={
+          <EditorRoute>
+            <EditorEditCategoryPage />
+          </EditorRoute>
+        }
+      />
+      <Route
         path="/editor/categories"
         element={
           <EditorRoute>
             <EditorCategoriesPage />
+          </EditorRoute>
+        }
+      />
+      <Route
+        path="/editor/task-templates/new"
+        element={
+          <EditorRoute>
+            <EditorNewTaskTemplatePage />
+          </EditorRoute>
+        }
+      />
+      <Route
+        path="/editor/task-templates/:templateId"
+        element={
+          <EditorRoute>
+            <EditorEditTaskTemplatePage />
           </EditorRoute>
         }
       />

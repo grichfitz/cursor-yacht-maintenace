@@ -23,6 +23,7 @@ export default function EditorUserPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const [displayName, setDisplayName] = useState<string>("")
   const [email, setEmail] = useState<string>("")
   const [role, setRole] = useState<AppRole>("crew")
 
@@ -41,7 +42,7 @@ export default function EditorUserPage() {
 
       const { data, error } = await supabase
         .from("users")
-        .select("email, role")
+        .select("display_name, email, role")
         .eq("id", userId)
         .maybeSingle()
 
@@ -55,6 +56,7 @@ export default function EditorUserPage() {
         return
       }
 
+      setDisplayName(String((data as any)?.display_name ?? ""))
       setEmail(String((data as any)?.email ?? ""))
       setRole(normalizeRole((data as any)?.role))
       setLoading(false)
@@ -107,8 +109,8 @@ export default function EditorUserPage() {
         <>
           <div className="card">
             <div style={{ fontWeight: 800, marginBottom: 8 }}>User</div>
-            <div style={{ fontWeight: 700 }}>{email || userId}</div>
-            <div style={{ fontSize: 12, opacity: 0.7 }}>{userId}</div>
+            <div style={{ fontWeight: 700 }}>{displayName || email || userId}</div>
+            <div style={{ fontSize: 12, opacity: 0.7 }}>{email ? email : userId}</div>
           </div>
 
           <div className="card">
