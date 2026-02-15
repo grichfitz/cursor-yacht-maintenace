@@ -12,7 +12,7 @@ const UNASSIGNED_GROUP_ID = "__unassigned_yachts__"
 type GroupRow = {
   id: string
   name: string
-  archived_at: string | null
+  parent_group_id: string | null
 }
 
 type YachtRow = {
@@ -49,44 +49,11 @@ export function useYachtGroupTree() {
 
       try {
 
-      /* ---------- 0. Admin check (only admins can see "unassigned") ---------- */
-
-      let isAdmin = false
-      try {
-        // Prefer authoritative helper function if present.
-        const { data: rpcData, error: rpcErr } = await supabase.rpc("is_admin")
-        if (!rpcErr && typeof rpcData === "boolean") {
-          isAdmin = rpcData
-        } else {
-          // Fallback: role link lookup (in case RPC isn't deployed).
-          const {
-            data: { user },
-          } = await supabase.auth.getUser()
-
-          if (user) {
-            const { data: rolesData, error: rolesError } = await supabase
-              .from("user_role_links")
-              .select("roles(name)")
-              .eq("user_id", user.id)
-
-            if (!rolesError) {
-              isAdmin =
-                (rolesData as any[])?.some(
-                  (r: any) => r?.roles?.name?.toLowerCase() === "admin"
-                ) ?? false
-            }
-          }
-        }
-      } catch {
-        // Non-fatal: default to non-admin view
-        isAdmin = false
-      }
-
       /* ---------- 1. Load groups ---------- */
 
       const { data: groups, error: groupError } = await supabase
         .from("groups")
-        .select("id, name, archived_at")
+        .select("id, name, parent_group_id")
         .order("name")
 
       if (cancelled) return
@@ -128,15 +95,10 @@ export function useYachtGroupTree() {
 
       /* ---------- 4. Build lookup sets ---------- */
 
-      // Ignore archived groups in the yacht tree (archive is an admin concern).
-      const activeGroups = (groups as GroupRow[]).filter((g) => !g.archived_at)
-      const activeGroupIds = new Set(activeGroups.map((g) => g.id))
+      const groupList = (groups as GroupRow[]) ?? []
+      const groupIdSet = new Set(groupList.map((g) => g.id))
 
-      const activeLinks = (links as YachtGroupLinkRow[]).filter((l) =>
-        activeGroupIds.has(l.group_id)
-      )
-
-      const assignedYachtIds = new Set(activeLinks.map((l) => l.yacht_id))
+      const activeLinks = ((links as YachtGroupLinkRow[]) ?? []).filter((l) => groupIdSet.has(l.group_id))
 
       const yachtMap = new Map<string, YachtRow>()
       ;(yachts as YachtRow[]).forEach((y) => {
@@ -147,8 +109,8 @@ export function useYachtGroupTree() {
 
       const groupIdsWithYachts = new Set<string>(activeLinks.map((l) => l.group_id))
 
-      // YM v2: groups are flat (no parent hierarchy).
-      const relevantGroups = isAdmin ? activeGroups : activeGroups.filter((g) => groupIdsWithYachts.has(g.id))
+      // Canonical access is flat; we only render groups that contain yachts.
+      const relevantGroups = groupList.filter((g) => groupIdsWithYachts.has(g.id))
 
       /* ---------- 6. Group nodes ---------- */
 
@@ -163,7 +125,7 @@ export function useYachtGroupTree() {
           }
         })
 
-      /* ---------- 7. Yacht nodes (assigned) ---------- */
+      /* ---------- 7. Yacht nodes ---------- */
 
       const yachtNodes: TreeNode[] =
         activeLinks
@@ -183,28 +145,8 @@ export function useYachtGroupTree() {
 
       /* ---------- 8. Unassigned yachts ---------- */
 
-      const unassignedYachts: TreeNode[] = isAdmin
-        ? (yachts as YachtRow[])
-            .filter((y) => !assignedYachtIds.has(y.id))
-            .map((y) => ({
-              id: y.id,
-              parentId: UNASSIGNED_GROUP_ID,
-              label: y.name,
-              nodeType: "yacht",
-              meta: y,
-            }))
-        : []
-
-      const unassignedGroupNode: TreeNode | null =
-        unassignedYachts.length > 0
-          ? {
-              id: UNASSIGNED_GROUP_ID,
-              parentId: null,
-              label: "Unassigned yachts",
-              nodeType: "group",
-              meta: { isVirtual: true },
-            }
-          : null
+      const unassignedYachts: TreeNode[] = []
+      const unassignedGroupNode: TreeNode | null = null
 
       /* ---------- 9. Combine & publish ---------- */
 

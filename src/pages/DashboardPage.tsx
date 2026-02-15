@@ -4,30 +4,23 @@ import { BarChart2, CheckSquare, Ship, Wrench } from "lucide-react"
 import { supabase } from "../lib/supabase"
 import { useMyRole } from "../hooks/useMyRole"
 import { useSession } from "../auth/SessionProvider"
+import { loadAccessibleYachtIds } from "../utils/taskAccess"
 
-type YachtTaskRow = {
+type TaskRow = {
   id: string
   yacht_id: string
-  status: "open" | "pending_review" | "approved"
+  status: string
   due_date: string | null
   title: string
-  owner_user_id?: string | null
+  category_id: string | null
+  template_id: string | null
 }
 
-type DashboardCountKey = "open" | "pending_review" | "approved" | "assigned_to_me"
-
-function StatusPill({ status }: { status: DashboardCountKey }) {
+function StatusPill({ status }: { status: string }) {
   const cfg = useMemo(() => {
-    switch (status) {
-      case "open":
-        return { bg: "rgba(110,110,115,0.12)", fg: "rgba(60,60,67,0.95)", label: "Open" }
-      case "assigned_to_me":
-        return { bg: "rgba(10,132,255,0.14)", fg: "rgba(10,132,255,0.95)", label: "Assigned to me" }
-      case "pending_review":
-        return { bg: "rgba(52,199,89,0.14)", fg: "rgba(28,110,50,1)", label: "Pending review" }
-      case "approved":
-        return { bg: "rgba(34,199,184,0.16)", fg: "rgba(10,140,130,1)", label: "Approved" }
-    }
+    const pretty = status ? status.replace(/_/g, " ") : "Unknown"
+    const label = pretty ? pretty.charAt(0).toUpperCase() + pretty.slice(1) : "Unknown"
+    return { bg: "rgba(110,110,115,0.12)", fg: "rgba(60,60,67,0.95)", label }
   }, [status])
 
   return (
@@ -55,38 +48,13 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [counts, setCounts] = useState<Record<DashboardCountKey, number>>({
-    open: 0,
-    assigned_to_me: 0,
-    pending_review: 0,
-    approved: 0,
-  })
-
-  const [assigned, setAssigned] = useState<YachtTaskRow[]>([])
-  const [overdue, setOverdue] = useState<YachtTaskRow[]>([])
+  const [countsByStatus, setCountsByStatus] = useState<Array<{ status: string; count: number }>>([])
+  const [upcoming, setUpcoming] = useState<TaskRow[]>([])
+  const [overdue, setOverdue] = useState<TaskRow[]>([])
 
   useEffect(() => {
     if (!session) return
     let cancelled = false
-
-    const countStatus = async (status: YachtTaskRow["status"]) => {
-      let q = supabase.from("yacht_tasks").select("id", { count: "exact", head: true })
-      q = q.eq("status", status)
-
-      const { count, error: cErr } = await q
-      if (cErr) throw cErr
-      return count ?? 0
-    }
-
-    const countAssignedToMe = async () => {
-      const { count, error: cErr } = await supabase
-        .from("yacht_tasks")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "open")
-        .eq("owner_user_id", session.user.id)
-      if (cErr) throw cErr
-      return count ?? 0
-    }
 
     const load = async () => {
       setLoading(true)
@@ -97,44 +65,54 @@ export default function DashboardPage() {
       }, 1500)
 
       try {
-        const [openC, assignedToMeC, pendingReviewC, approvedC] = await Promise.all([
-          countStatus("open"),
-          countAssignedToMe(),
-          countStatus("pending_review"),
-          countStatus("approved"),
-        ])
+        const yachtIds = await loadAccessibleYachtIds(session.user.id)
+        if (yachtIds.length === 0) {
+          setCountsByStatus([])
+          setUpcoming([])
+          setOverdue([])
+          setLoading(false)
+          return
+        }
 
         const nowIso = new Date().toISOString()
 
-        const { data: assignedRows, error: aErr } = await supabase
-          .from("yacht_tasks")
-          .select("id,yacht_id,status,due_date,title")
-          .eq("status", "open")
-          .eq("owner_user_id", session.user.id)
-          .order("due_date", { ascending: true, nullsFirst: false })
-          .limit(8)
+        const [{ data: countRows, error: cErr }, { data: overdueRows, error: oErr }, { data: upcomingRows, error: uErr }] =
+          await Promise.all([
+            supabase.from("tasks").select("id,status,yacht_id").in("yacht_id", yachtIds).limit(2000),
+            supabase
+              .from("tasks")
+              .select("id,title,status,yacht_id,category_id,due_date,template_id")
+              .in("yacht_id", yachtIds)
+              .lt("due_date", nowIso)
+              .order("due_date", { ascending: true })
+              .limit(8),
+            supabase
+              .from("tasks")
+              .select("id,title,status,yacht_id,category_id,due_date,template_id")
+              .in("yacht_id", yachtIds)
+              .gte("due_date", nowIso)
+              .order("due_date", { ascending: true })
+              .limit(8),
+          ])
 
-        if (aErr) throw aErr
+        const firstErr = cErr || oErr || uErr
+        if (firstErr) throw firstErr
 
-        const { data: overdueRows, error: oErr } = await supabase
-          .from("yacht_tasks")
-          .select("id,yacht_id,status,due_date,title")
-          .lt("due_date", nowIso)
-          .neq("status", "approved")
-          .order("due_date", { ascending: true })
-          .limit(8)
+        const countsMap = new Map<string, number>()
+        ;((countRows as any[]) ?? []).forEach((r) => {
+          const status = String(r?.status ?? "")
+          if (!status) return
+          countsMap.set(status, (countsMap.get(status) ?? 0) + 1)
+        })
 
-        if (oErr) throw oErr
+        const sortedCounts = Array.from(countsMap.entries())
+          .map(([status, count]) => ({ status, count }))
+          .sort((a, b) => b.count - a.count || a.status.localeCompare(b.status))
 
         if (!cancelled) {
-          setCounts({
-            open: openC,
-            assigned_to_me: assignedToMeC,
-            pending_review: pendingReviewC,
-            approved: approvedC,
-          })
-          setAssigned((assignedRows as YachtTaskRow[]) ?? [])
-          setOverdue((overdueRows as YachtTaskRow[]) ?? [])
+          setCountsByStatus(sortedCounts)
+          setOverdue((overdueRows as TaskRow[]) ?? [])
+          setUpcoming((upcomingRows as TaskRow[]) ?? [])
           setLoading(false)
         }
       } catch (e: any) {
@@ -173,7 +151,7 @@ export default function DashboardPage() {
             <div className="quicklink-icon" aria-hidden="true">
               <CheckSquare size={22} />
             </div>
-            <div className="quicklink-label">My Tasks</div>
+            <div className="quicklink-label">Tasks</div>
           </button>
 
           <button type="button" className="quicklink" onClick={() => navigate("/yachts")}>
@@ -220,39 +198,43 @@ export default function DashboardPage() {
       )}
 
       <div className="card">
-        <div style={{ fontWeight: 700, marginBottom: 10 }}>Task counts</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          {(["open", "assigned_to_me", "pending_review", "approved"] as const).map((s) => (
-            <div
-              key={s}
-              style={{
-                border: "1px solid var(--border-subtle)",
-                borderRadius: 14,
-                padding: 10,
-                background: "rgba(255,255,255,0.7)",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <StatusPill status={s} />
-                <div style={{ fontSize: 18, fontWeight: 800 }}>{counts[s]}</div>
+        <div style={{ fontWeight: 700, marginBottom: 10 }}>Task counts (by status)</div>
+        {countsByStatus.length === 0 ? (
+          <div style={{ padding: 2, fontSize: 13, opacity: 0.75 }}>No tasks.</div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {countsByStatus.slice(0, 6).map((s) => (
+              <div
+                key={s.status}
+                style={{
+                  border: "1px solid var(--border-subtle)",
+                  borderRadius: 14,
+                  padding: 10,
+                  background: "rgba(255,255,255,0.7)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <StatusPill status={s.status} />
+                  <div style={{ fontSize: 18, fontWeight: 800 }}>{s.count}</div>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="card card-list">
         <div className="list-row" style={{ justifyContent: "space-between" }}>
-          <div style={{ fontWeight: 700 }}>Assigned</div>
+          <div style={{ fontWeight: 700 }}>Upcoming</div>
           <button className="secondary" type="button" onClick={() => navigate("/tasks")}>
             View
           </button>
         </div>
 
-        {assigned.length === 0 ? (
-          <div style={{ padding: 12, fontSize: 13, opacity: 0.75 }}>No assigned tasks.</div>
+        {upcoming.length === 0 ? (
+          <div style={{ padding: 12, fontSize: 13, opacity: 0.75 }}>No upcoming tasks.</div>
         ) : (
-          assigned.map((t) => (
+          upcoming.map((t) => (
             <button
               key={t.id}
               type="button"

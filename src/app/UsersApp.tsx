@@ -57,19 +57,11 @@ export default function UsersApp() {
           }}
           onSelect={(node) => {
             if (node.nodeType === "user") {
-              navigate(`/apps/users/${node.id}`)
+              navigate(`/users/${node.id}`)
             }
           }}
         />
       </div>
-
-      <button
-        type="button"
-        className="cta-button"
-        onClick={() => navigate("/apps/users/new")}
-      >
-        + Add User
-      </button>
     </div>
   )
 }

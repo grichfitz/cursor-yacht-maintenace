@@ -3,14 +3,16 @@ import { useNavigate } from "react-router-dom"
 import { supabase } from "../lib/supabase"
 import { useFocusReload } from "../hooks/useFocusReload"
 import { useSession } from "../auth/SessionProvider"
+import { loadAccessibleYachtIds } from "../utils/taskAccess"
 
-type TaskInstanceRow = {
+type TaskRow = {
   id: string
   yacht_id: string
-  status: "open" | "pending_review" | "approved"
+  status: string
   due_date: string | null
   title: string
-  owner_user_id: string | null
+  category_id: string | null
+  template_id: string | null
 }
 
 export default function TasksPage() {
@@ -18,7 +20,8 @@ export default function TasksPage() {
   const { session } = useSession()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [tasks, setTasks] = useState<TaskInstanceRow[]>([])
+  const [tasks, setTasks] = useState<TaskRow[]>([])
+  const [yachtNameById, setYachtNameById] = useState<Map<string, string>>(new Map())
 
   const byDue = useMemo(() => {
     return [...tasks].sort((a, b) => {
@@ -43,24 +46,50 @@ export default function TasksPage() {
 
       if (!user) {
         setTasks([])
+        setYachtNameById(new Map())
         setLoading(false)
         return
       }
 
-      // v1 "assigned" => v2 status=open AND owner_user_id = me
-      const { data: instances, error: iErr } = await supabase
-        .from("yacht_tasks")
-        .select("id,yacht_id,status,due_date,title,owner_user_id")
-        .eq("status", "open")
-        .eq("owner_user_id", user.id)
-
-      if (iErr) {
-        setError(iErr.message)
+      const yachtIds = await loadAccessibleYachtIds(user.id)
+      if (yachtIds.length === 0) {
+        setTasks([])
+        setYachtNameById(new Map())
         setLoading(false)
         return
       }
 
-      setTasks((instances as TaskInstanceRow[]) ?? [])
+      const { data: rows, error: tErr } = await supabase
+        .from("tasks")
+        .select("id,title,status,yacht_id,category_id,due_date,template_id")
+        .in("yacht_id", yachtIds)
+        .order("due_date", { ascending: true, nullsFirst: false })
+        .limit(500)
+
+      if (tErr) {
+        setError(tErr.message)
+        setLoading(false)
+        return
+      }
+
+      const list = (rows as TaskRow[]) ?? []
+      setTasks(list)
+
+      const uniqYachtIds = Array.from(new Set(list.map((t) => t.yacht_id).filter(Boolean)))
+      if (uniqYachtIds.length > 0) {
+        const { data: yachts, error: yErr } = await supabase.from("yachts").select("id,name").in("id", uniqYachtIds)
+        if (!yErr) {
+          const map = new Map<string, string>()
+          ;((yachts as any[]) ?? []).forEach((y) => {
+            if (y?.id) map.set(String(y.id), String(y.name ?? ""))
+          })
+          setYachtNameById(map)
+        } else {
+          setYachtNameById(new Map())
+        }
+      } else {
+        setYachtNameById(new Map())
+      }
       setLoading(false)
     } finally {
       window.clearTimeout(timeoutId)
@@ -97,8 +126,8 @@ export default function TasksPage() {
 
   return (
     <div className="screen">
-      <div className="screen-title">My Tasks</div>
-      <div className="screen-subtitle">Only tasks assigned to you.</div>
+      <div className="screen-title">Tasks</div>
+      <div className="screen-subtitle">Tasks visible to your groups.</div>
 
       {error && (
         <div style={{ color: "var(--accent-red)", marginBottom: 10, fontSize: 13 }}>
@@ -109,7 +138,7 @@ export default function TasksPage() {
       <div className="card card-list">
         {byDue.length === 0 ? (
           <div style={{ padding: 12, fontSize: 13, opacity: 0.75 }}>
-            No assigned tasks.
+            No tasks.
           </div>
         ) : (
           byDue.map((t) => (
@@ -124,6 +153,7 @@ export default function TasksPage() {
                 <div className="list-button-subtitle">
                   {t.due_date ? `Due ${new Date(t.due_date).toLocaleDateString()}` : "No due date"} ·{" "}
                   {t.status}
+                  {t.yacht_id ? ` · ${yachtNameById.get(t.yacht_id) || t.yacht_id}` : ""}
                 </div>
               </div>
               <div className="list-button-chevron">›</div>

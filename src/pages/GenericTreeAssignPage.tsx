@@ -34,7 +34,7 @@ export default function GenericTreeAssignPage({
   const useRadioButtons = mapTable === "yacht_group_links" && mapTargetField === "yacht_id"
   
   // Check if this is user-group assignment (admin/service only per RLS_DESIGN.md)
-  const isUserGroupAssignment = mapTable === "group_memberships"
+  const isUserGroupAssignment = mapTable === "group_members"
 
   // Check if current user is admin
   useEffect(() => {
@@ -78,20 +78,7 @@ export default function GenericTreeAssignPage({
       })
   }, [targetId, mapTable, mapTargetField, mapNodeField, session])
 
-  const childrenMap = useMemo(() => {
-    const map: Record<string, string[]> = {}
-    for (const n of nodes) {
-      if (!n.parentId) continue
-      if (!map[n.parentId]) map[n.parentId] = []
-      map[n.parentId].push(n.id)
-    }
-    return map
-  }, [nodes])
-
-  const getDescendants = (id: string): string[] => {
-    const kids = childrenMap[id] || []
-    return kids.flatMap(k => [k, ...getDescendants(k)])
-  }
+  // Canonical access model is flat; no recursive/descendant assignment logic.
 
   const toggle = async (id: string) => {
     // Prevent multiple rapid clicks
@@ -106,10 +93,8 @@ export default function GenericTreeAssignPage({
     }
     
     const shouldCheck = !checked.includes(id)
-    const autoAssignChildrenOnCheck = isUserGroupAssignment && !useRadioButtons
-    const idsToCheck = shouldCheck && autoAssignChildrenOnCheck
-      ? Array.from(new Set([id, ...getDescendants(id)].filter((x) => !String(x).startsWith("__"))))
-      : [id]
+    const autoAssignChildrenOnCheck = false
+    const idsToCheck = [id]
 
     setLoading(id)
     
@@ -126,10 +111,7 @@ export default function GenericTreeAssignPage({
       // Checkbox mode
       setChecked((prev) => {
         if (!shouldCheck) return prev.filter((x) => x !== id)
-        if (!autoAssignChildrenOnCheck) return [...prev, id]
-        const next = new Set(prev)
-        idsToCheck.forEach((x) => next.add(x))
-        return Array.from(next)
+        return [...prev, id]
       })
     }
 
@@ -207,9 +189,7 @@ export default function GenericTreeAssignPage({
         }
       } else {
         // Standard many-to-many upsert
-        const payload = autoAssignChildrenOnCheck
-          ? idsToCheck.map((gid) => ({ [mapTargetField]: targetId, [mapNodeField]: gid }))
-          : [{ [mapTargetField]: targetId, [mapNodeField]: id }]
+        const payload = [{ [mapTargetField]: targetId, [mapNodeField]: id }]
 
         const { error } = await supabase.from(mapTable).upsert(payload)
 
@@ -267,7 +247,6 @@ export default function GenericTreeAssignPage({
       nodes={nodes}
       renderActions={(node) => {
         const isVirtual = node.id.startsWith("__")
-        const descendants = getDescendants(node.id)
 
         if (useRadioButtons) {
           // Radio button mode: only one selection allowed
@@ -308,9 +287,6 @@ export default function GenericTreeAssignPage({
           )
         } else {
           // Checkbox mode: explicit membership only (no upward inheritance).
-          const someChildrenChecked =
-            descendants.some(x => checked.includes(x))
-
           const isChecked = checked.includes(node.id)
 
           return (
@@ -320,8 +296,7 @@ export default function GenericTreeAssignPage({
                 checked={isChecked}
                 disabled={isVirtual || loading === node.id || (isUserGroupAssignment && !isAdmin)}
                 ref={(el) => {
-                  // If descendants are selected, show tri-state without forcing ancestor membership.
-                  if (el) el.indeterminate = !isChecked && someChildrenChecked
+                  if (el) el.indeterminate = false
                 }}
                 onClick={(e) => {
                   e.stopPropagation()

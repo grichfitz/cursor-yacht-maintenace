@@ -21,9 +21,7 @@ export default function EditorNewYachtPage() {
   const [makeModel, setMakeModel] = useState("")
   const [location, setLocation] = useState("")
 
-  // YM v2: groups are flat (no parent hierarchy).
   const orderedGroups = useMemo(() => [...groups].sort((a, b) => a.name.localeCompare(b.name)), [groups])
-  const formatTreeLabel = (g: GroupRow) => g.name
 
   useEffect(() => {
     if (!session) return
@@ -97,9 +95,9 @@ export default function EditorNewYachtPage() {
         <label>Group:</label>
         <select value={groupId} onChange={(e) => setGroupId(e.target.value)} style={{ marginBottom: 12 }} disabled={saving}>
           <option value="">Select group…</option>
-          {orderedGroups.map(({ g }) => (
+          {orderedGroups.map((g) => (
             <option key={g.id} value={g.id}>
-              {formatTreeLabel(g)}
+              {g.name}
             </option>
           ))}
         </select>

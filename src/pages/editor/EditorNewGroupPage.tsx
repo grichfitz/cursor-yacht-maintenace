@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 import { useSession } from "../../auth/SessionProvider"
 import EditorNav from "./EditorNav"
+import { buildGroupParentSelectOptions } from "../../utils/groupTreeUi"
 
-type GroupRow = { id: string; name: string }
+type GroupRow = { id: string; name: string; parent_group_id: string | null }
 
 export default function EditorNewGroupPage() {
   const navigate = useNavigate()
@@ -17,12 +18,9 @@ export default function EditorNewGroupPage() {
   const [groups, setGroups] = useState<GroupRow[]>([])
 
   const [name, setName] = useState("")
-  const [description, setDescription] = useState("")
   const [parentId, setParentId] = useState<string>("")
 
-  // YM v2: groups are flat (no parent hierarchy).
-  const orderedGroups = useMemo(() => [...groups].sort((a, b) => a.name.localeCompare(b.name)), [groups])
-  const formatTreeLabel = (g: GroupRow) => g.name
+  const parentOptions = useMemo(() => buildGroupParentSelectOptions(groups), [groups])
 
   useEffect(() => {
     if (!session) return
@@ -31,7 +29,7 @@ export default function EditorNewGroupPage() {
     const loadGroups = async () => {
       setLoading(true)
       setError(null)
-      const { data, error: gErr } = await supabase.from("groups").select("id,name").order("name")
+      const { data, error: gErr } = await supabase.from("groups").select("id,name,parent_group_id").order("name")
       if (cancelled) return
       if (gErr) {
         setError(gErr.message)
@@ -60,7 +58,7 @@ export default function EditorNewGroupPage() {
     setSaving(true)
     const { error: insErr } = await supabase.from("groups").insert({
       name: trimmed,
-      description: description.trim() ? description.trim() : null,
+      parent_group_id: parentId ? parentId : null,
     })
     setSaving(false)
 
@@ -86,15 +84,12 @@ export default function EditorNewGroupPage() {
         <label>Name:</label>
         <input value={name} onChange={(e) => setName(e.target.value)} style={{ marginBottom: 12 }} disabled={saving} />
 
-        <label>Description (optional):</label>
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} style={{ marginBottom: 12 }} disabled={saving} />
-
         <label>Parent group (optional):</label>
         <select value={parentId} onChange={(e) => setParentId(e.target.value)} style={{ marginBottom: 12 }} disabled={saving}>
           <option value="">—</option>
-          {orderedGroups.map(({ g }) => (
-            <option key={g.id} value={g.id}>
-              {formatTreeLabel(g)}
+          {parentOptions.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.label}
             </option>
           ))}
         </select>

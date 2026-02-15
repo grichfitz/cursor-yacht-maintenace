@@ -71,7 +71,7 @@ export default function ProfilePage() {
 
       // Memberships (exclude Global Library in display).
       const { data: links, error: linksErr } = await supabase
-        .from("group_memberships")
+        .from("group_members")
         .select("group_id, groups(name)")
         .eq("user_id", user.id)
 
@@ -141,7 +141,7 @@ export default function ProfilePage() {
       return
     }
 
-    // v2: no public.users table; persist profile fields in auth metadata.
+    // Persist profile fields in auth metadata.
     const { error: metaErr } = await supabase.auth.updateUser({
       data: { display_name: trimmedName || "", profile_description: description || "" },
     })

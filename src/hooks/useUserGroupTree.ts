@@ -12,7 +12,7 @@ const UNASSIGNED_GROUP_ID = "__unassigned_users__"
 type GroupRow = {
   id: string
   name: string
-  archived_at: string | null
+  parent_group_id: string | null
 }
 
 type UserRow = {
@@ -52,7 +52,7 @@ export function useUserGroupTree() {
 
       const { data: groups, error: groupError } = await supabase
         .from("groups")
-        .select("id, name, archived_at")
+        .select("id, name, parent_group_id")
         .order("name")
 
       if (cancelled) return
@@ -66,7 +66,7 @@ export function useUserGroupTree() {
       /* ---------- 2. Load user-group links ---------- */
 
       const { data: links, error: linkError } = await supabase
-        .from("group_memberships")
+        .from("group_members")
         .select("user_id, group_id")
 
       if (cancelled) return
@@ -77,14 +77,9 @@ export function useUserGroupTree() {
         return
       }
 
-      /* ---------- 3. Ignore archived groups in the user tree ---------- */
-
-      const activeGroups = (groups as GroupRow[]).filter((g) => !g.archived_at)
-      const activeGroupIds = new Set(activeGroups.map((g) => g.id))
-
-      const activeLinks = (links as UserGroupLinkRow[]).filter((l) =>
-        activeGroupIds.has(l.group_id)
-      )
+      const groupList = (groups as GroupRow[]) ?? []
+      const groupIdSet = new Set(groupList.map((g) => g.id))
+      const activeLinks = ((links as UserGroupLinkRow[]) ?? []).filter((l) => groupIdSet.has(l.group_id))
 
       // Defensive: remove duplicate link rows (prevents duplicate render keys)
       const seenLinkKeys = new Set<string>()
@@ -98,7 +93,7 @@ export function useUserGroupTree() {
 
       /* ---------- 4. Group nodes ---------- */
 
-      const groupNodes: TreeNode[] = activeGroups.map((g) => ({
+      const groupNodes: TreeNode[] = groupList.map((g) => ({
         id: g.id,
         parentId: null,
         label: g.name,
@@ -108,7 +103,7 @@ export function useUserGroupTree() {
 
       /* ---------- 5. Combine ---------- */
 
-      // YM v2: no public.users directory table, so we only render group nodes here.
+      // No user directory table, so we only render group nodes here.
       setNodes(groupNodes)
       setLoading(false)
       } finally {

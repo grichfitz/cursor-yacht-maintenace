@@ -3,12 +3,10 @@ import { supabase } from "../lib/supabase"
 import type { TreeNode } from "../components/TreeDisplay"
 import { useSession } from "../auth/SessionProvider"
 
-const ARCHIVE_ID = "__archive__"
-
 type GroupRow = {
   id: string
   name: string
-  archived_at: string | null
+  parent_group_id: string | null
 }
 
 export function useGroupTree() {
@@ -31,20 +29,9 @@ export function useGroupTree() {
 
       try {
 
-      // Only admins should see the Archive virtual group.
-      let isAdmin = false
-      try {
-        const { data: rpcData, error: rpcErr } = await supabase.rpc("is_admin")
-        if (!rpcErr && typeof rpcData === "boolean") {
-          isAdmin = rpcData
-        }
-      } catch {
-        isAdmin = false
-      }
-
       const { data, error } = await supabase
         .from("groups")
-        .select("id, name, archived_at")
+        .select("id, name, parent_group_id")
         .order("name")
 
       if (cancelled) return
@@ -55,37 +42,19 @@ export function useGroupTree() {
         return
       }
 
-      const active: TreeNode[] = []
-      const archived: TreeNode[] = []
+      // Display hierarchy (parent_group_id) as a tree.
+      // Note: access control remains flat; this is only UI presentation.
+      const rows = (data as GroupRow[]) ?? []
+      const idSet = new Set(rows.map((g) => g.id))
+      const tree: TreeNode[] = rows.map((g) => ({
+        id: g.id,
+        parentId: g.parent_group_id && idSet.has(g.parent_group_id) ? g.parent_group_id : null,
+        label: g.name,
+        nodeType: "group",
+        meta: g,
+      }))
 
-      for (const g of data as GroupRow[]) {
-        const node: TreeNode = {
-          id: g.id,
-          parentId: null,
-          label: g.name,
-          nodeType: "group",
-          meta: g,
-        }
-
-        if (g.archived_at) archived.push(node)
-        else active.push(node)
-      }
-
-      // Virtual Archive root (bottom), same pattern as categories
-      if (isAdmin && archived.length) {
-        active.push({
-          id: ARCHIVE_ID,
-          label: "Archive",
-          parentId: null,
-          nodeType: "group",
-          meta: { isVirtual: true },
-        })
-
-        archived.forEach((a) => (a.parentId = ARCHIVE_ID))
-        active.push(...archived)
-      }
-
-      setNodes(active)
+      setNodes(tree)
       setLoading(false)
       } finally {
         window.clearTimeout(timeoutId)
@@ -124,7 +93,6 @@ export function useGroupTree() {
 
   return {
     nodes,
-    ARCHIVE_ID,
     loading,
     error,
   }

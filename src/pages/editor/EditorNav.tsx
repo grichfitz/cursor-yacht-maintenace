@@ -1,12 +1,13 @@
 import React, { useMemo } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
-import { Folder, Ship, Tag, User } from "lucide-react"
+import { CheckSquare, Folder, Ship, Tag, User } from "lucide-react"
 
 type Section = { label: string; to: string; match: (pathname: string) => boolean }
 
 const sections: Section[] = [
   { label: "Yachts", to: "/editor/yachts", match: (p) => p.startsWith("/editor/yachts") },
   { label: "Groups", to: "/editor/groups", match: (p) => p.startsWith("/editor/groups") },
+  { label: "Tasks", to: "/editor/tasks", match: (p) => p.startsWith("/editor/tasks") },
   { label: "Categories", to: "/editor/categories", match: (p) => p.startsWith("/editor/categories") },
   { label: "Users", to: "/users", match: (p) => p.startsWith("/users") },
 ]
@@ -90,6 +91,25 @@ export default function EditorNav() {
           }}
         >
           <Tag size={18} />
+        </button>
+
+        <button
+          type="button"
+          className="primary-button"
+          aria-label="Editor · Tasks"
+          title="Tasks"
+          onClick={() => navigate("/editor/tasks")}
+          style={{
+            background:
+              sectionTo === "/editor/tasks" ? "rgba(10, 132, 255, 0.14)" : "rgba(0, 0, 0, 0.06)",
+            borderColor:
+              sectionTo === "/editor/tasks" ? "rgba(10, 132, 255, 0.22)" : "rgba(0, 0, 0, 0.06)",
+            width: 44,
+            height: 34,
+            padding: 0,
+          }}
+        >
+          <CheckSquare size={18} />
         </button>
 
         <button

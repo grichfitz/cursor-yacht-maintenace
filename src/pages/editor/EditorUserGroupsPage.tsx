@@ -72,7 +72,7 @@ export default function EditorUserGroupsPage() {
           <GenericTreeAssignPage
             targetId={userId}
             nodes={nodes}
-            mapTable="group_memberships"
+            mapTable="group_members"
             mapTargetField="user_id"
             mapNodeField="group_id"
           />

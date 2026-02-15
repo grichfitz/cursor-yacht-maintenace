@@ -3,10 +3,11 @@ import { useNavigate, useParams } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 import { useSession } from "../../auth/SessionProvider"
 import EditorNav from "./EditorNav"
+import { buildGroupParentSelectOptions } from "../../utils/groupTreeUi"
 
-type GroupRow = { id: string; name: string; description?: string | null }
-type UserRow = { id: string; display_name: string | null; email: string | null; role?: string | null }
-type GroupMemberRow = { id: string; user_id: string; group_id: string }
+type GroupRow = { id: string; name: string; parent_group_id: string | null }
+type UserRow = { id: string; full_name: string | null; email: string | null }
+type GroupMemberRow = { user_id: string; group_id: string }
 
 export default function EditorEditGroupPage() {
   const navigate = useNavigate()
@@ -22,23 +23,20 @@ export default function EditorEditGroupPage() {
   const [users, setUsers] = useState<UserRow[]>([])
 
   const [name, setName] = useState("")
-  const [description, setDescription] = useState("")
   const [parentId, setParentId] = useState<string>("")
 
   const [members, setMembers] = useState<UserRow[]>([])
   const [membersLoading, setMembersLoading] = useState(false)
   const [addUserId, setAddUserId] = useState("")
 
-  // YM v2: groups are flat (no parent hierarchy).
-  const orderedGroups = useMemo(() => [...groups].sort((a, b) => a.name.localeCompare(b.name)), [groups])
   const descendantIdsOfEditing = useMemo(() => new Set<string>(), [])
-  const formatTreeLabel = (g: GroupRow) => g.name
+  const parentOptions = useMemo(() => buildGroupParentSelectOptions(groups), [groups])
 
   const loadMembers = async (gid: string, directory: UserRow[]) => {
     setMembersLoading(true)
     const { data: gm, error: gmErr } = await supabase
       .from("group_members")
-      .select("id,user_id,group_id")
+      .select("user_id,group_id")
       .eq("group_id", gid)
 
     if (gmErr) {
@@ -57,7 +55,7 @@ export default function EditorEditGroupPage() {
         ? []
         : ids
             .filter((id) => !resolved.some((u) => u.id === id))
-            .map((id) => ({ id, display_name: null, email: null }))
+            .map((id) => ({ id, full_name: null, email: null }))
 
     setMembers([...resolved, ...placeholders])
     setMembersLoading(false)
@@ -73,8 +71,8 @@ export default function EditorEditGroupPage() {
       setError(null)
 
       const [{ data: g, error: gErr }, { data: row, error: rowErr }] = await Promise.all([
-        supabase.from("groups").select("id,name,description").order("name"),
-        supabase.from("groups").select("id,name,description").eq("id", groupId).maybeSingle(),
+        supabase.from("groups").select("id,name,parent_group_id").order("name"),
+        supabase.from("groups").select("id,name,parent_group_id").eq("id", groupId).maybeSingle(),
       ])
 
       if (cancelled) return
@@ -88,9 +86,7 @@ export default function EditorEditGroupPage() {
         return
       }
 
-      const directory: UserRow[] = []
       setGroups((g as GroupRow[]) ?? [])
-      setUsers([])
 
       const grp = row as GroupRow | null
       if (!grp?.id) {
@@ -99,9 +95,30 @@ export default function EditorEditGroupPage() {
         return
       }
 
+      // Optional user directory (if exposed by RLS): users(id,email,full_name)
+      let directory: UserRow[] = []
+      try {
+        const { data: u, error: uErr } = await supabase
+          .from("users")
+          .select("id,full_name,email")
+          .order("email")
+          .limit(500)
+
+        if (!uErr) {
+          directory = ((u as any[]) ?? []).map((r) => ({
+            id: String(r.id),
+            full_name: (r.full_name ?? null) as string | null,
+            email: (r.email ?? null) as string | null,
+          }))
+        }
+      } catch {
+        directory = []
+      }
+
+      setUsers(directory)
+
       setName(grp.name ?? "")
-      setDescription((grp.description ?? "") as string)
-      setParentId("")
+      setParentId(grp.parent_group_id ?? "")
       setAddUserId("")
 
       await loadMembers(groupId, directory)
@@ -127,10 +144,7 @@ export default function EditorEditGroupPage() {
     setSaving(true)
     const { error: upErr } = await supabase
       .from("groups")
-      .update({
-        name: trimmed,
-        description: description.trim() ? description.trim() : null,
-      })
+      .update({ name: trimmed, parent_group_id: parentId ? parentId : null })
       .eq("id", groupId)
     setSaving(false)
 
@@ -209,18 +223,14 @@ export default function EditorEditGroupPage() {
         <label>Name:</label>
         <input value={name} onChange={(e) => setName(e.target.value)} style={{ marginBottom: 12 }} disabled={saving || deleting} />
 
-        <label>Description (optional):</label>
-        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} style={{ marginBottom: 12 }} disabled={saving || deleting} />
-
         <label>Parent group:</label>
         <select value={parentId} onChange={(e) => setParentId(e.target.value)} style={{ marginBottom: 12 }} disabled={saving || deleting}>
           <option value="">—</option>
-          {orderedGroups
-            .map((x) => x.g)
-            .filter((p) => p.id !== groupId && !descendantIdsOfEditing.has(p.id))
-            .map((p) => (
-              <option key={p.id} value={p.id}>
-                {formatTreeLabel(p)}
+          {parentOptions
+            .filter((o) => o.id !== groupId && !descendantIdsOfEditing.has(o.id))
+            .map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.label}
               </option>
             ))}
         </select>
@@ -244,7 +254,7 @@ export default function EditorEditGroupPage() {
               .filter((u) => !members.some((m) => m.id === u.id))
               .map((u) => (
                 <option key={u.id} value={u.id}>
-                  {(u.display_name || u.email || "Unnamed user") + (u.role ? ` (${u.role})` : "")}
+                  {u.full_name || u.email || u.id}
                 </option>
               ))}
           </select>
@@ -275,7 +285,7 @@ export default function EditorEditGroupPage() {
                 }}
               >
                 <div style={{ display: "flex", flexDirection: "column" }}>
-                  <div style={{ fontWeight: 700 }}>{m.display_name || m.email || m.id}</div>
+                  <div style={{ fontWeight: 700 }}>{m.full_name || m.email || m.id}</div>
                   <div style={{ fontSize: 12, opacity: 0.75 }}>{m.email ? m.email : ""}</div>
                 </div>
                 <button

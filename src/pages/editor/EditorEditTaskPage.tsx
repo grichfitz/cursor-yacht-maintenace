@@ -1,12 +1,42 @@
 import React, { useEffect, useMemo, useState } from "react"
-import { useNavigate } from "react-router-dom"
-import { supabase } from "../lib/supabase"
-import { useSession } from "../auth/SessionProvider"
-import EditorNav from "./editor/EditorNav"
+import { useNavigate, useParams } from "react-router-dom"
+import { supabase } from "../../lib/supabase"
+import { useSession } from "../../auth/SessionProvider"
+import EditorNav from "./EditorNav"
 
-export default function NewTaskPage() {
+type TaskRow = {
+  id: string
+  title: string
+  status: string
+  yacht_id: string
+  category_id: string | null
+  due_date: string | null
+  template_id: string | null
+}
+
+type YachtRow = { id: string; name: string }
+type TemplateRow = { id: string; name: string }
+
+function toLocalInputValue(iso: string | null): string {
+  if (!iso) return ""
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ""
+  return d.toISOString().slice(0, 16)
+}
+
+export default function EditorEditTaskPage() {
   const navigate = useNavigate()
   const { session } = useSession()
+  const { taskId } = useParams<{ taskId: string }>()
+
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState<string | null>(null)
+
+  const [row, setRow] = useState<TaskRow | null>(null)
+  const [yachts, setYachts] = useState<YachtRow[]>([])
+  const [templates, setTemplates] = useState<TemplateRow[]>([])
 
   const [title, setTitle] = useState("")
   const [status, setStatus] = useState("")
@@ -14,12 +44,6 @@ export default function NewTaskPage() {
   const [dueLocal, setDueLocal] = useState("")
   const [templateId, setTemplateId] = useState("")
   const [categoryId, setCategoryId] = useState("")
-
-  const [yachts, setYachts] = useState<Array<{ id: string; name: string }>>([])
-  const [templates, setTemplates] = useState<Array<{ id: string; name: string }>>([])
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   const dueIso = useMemo(() => {
     const raw = dueLocal.trim()
@@ -31,29 +55,53 @@ export default function NewTaskPage() {
 
   useEffect(() => {
     if (!session) return
+    if (!taskId) return
     let cancelled = false
 
     const load = async () => {
       setLoading(true)
       setError(null)
-      const [{ data: y, error: yErr }, { data: tpl, error: tplErr }] = await Promise.all([
+      setSaved(null)
+
+      const [{ data: t, error: tErr }, { data: y, error: yErr }, { data: tpl, error: tplErr }] = await Promise.all([
+        supabase
+          .from("tasks")
+          .select("id,title,status,yacht_id,category_id,due_date,template_id")
+          .eq("id", taskId)
+          .maybeSingle(),
         supabase.from("yachts").select("id,name").order("name"),
         supabase.from("templates").select("id,name").order("name"),
       ])
 
       if (cancelled) return
 
-      const firstErr = yErr || tplErr
+      const firstErr = tErr || yErr || tplErr
       if (firstErr) {
         setError(firstErr.message)
-        setYachts([])
-        setTemplates([])
+        setRow(null)
         setLoading(false)
         return
       }
 
-      setYachts(((y as any[]) ?? []).map((r) => ({ id: String(r.id), name: String(r.name ?? "") })))
-      setTemplates(((tpl as any[]) ?? []).map((r) => ({ id: String(r.id), name: String(r.name ?? "") })))
+      const task = (t as TaskRow | null) ?? null
+      if (!task?.id) {
+        setError("Task not found (or not visible).")
+        setRow(null)
+        setLoading(false)
+        return
+      }
+
+      setRow(task)
+      setYachts((y as YachtRow[]) ?? [])
+      setTemplates((tpl as TemplateRow[]) ?? [])
+
+      setTitle(task.title ?? "")
+      setStatus(task.status ?? "")
+      setYachtId(task.yacht_id ?? "")
+      setDueLocal(toLocalInputValue(task.due_date))
+      setTemplateId(task.template_id ?? "")
+      setCategoryId(task.category_id ?? "")
+
       setLoading(false)
     }
 
@@ -61,10 +109,12 @@ export default function NewTaskPage() {
     return () => {
       cancelled = true
     }
-  }, [session])
+  }, [session, taskId])
 
-  const handleCreate = async () => {
+  const save = async () => {
+    if (!taskId) return
     setError(null)
+    setSaved(null)
 
     const trimmedName = title.trim()
     const trimmedStatus = status.trim()
@@ -84,9 +134,9 @@ export default function NewTaskPage() {
 
     setSaving(true)
 
-    const { data, error: insertError } = await supabase
+    const { error: upErr } = await supabase
       .from("tasks")
-      .insert({
+      .update({
         title: trimmedName,
         status: trimmedStatus,
         yacht_id: yachtId,
@@ -94,35 +144,31 @@ export default function NewTaskPage() {
         template_id: templateId ? templateId : null,
         category_id: categoryId ? categoryId : null,
       })
-      .select("id")
-      .single()
+      .eq("id", taskId)
 
     setSaving(false)
 
-    if (insertError) {
-      setError(insertError.message)
+    if (upErr) {
+      setError(upErr.message)
       return
     }
 
-    const newId = (data as any)?.id as string | undefined
-    if (!newId) {
-      setError("Task created, but no ID returned.")
-      return
-    }
-
-    navigate(`/editor/tasks/${newId}`, { replace: true })
+    setSaved("Saved.")
   }
+
+  if (!taskId) return null
+  if (loading) return <div className="screen">Loading…</div>
 
   return (
     <div className="screen">
       <EditorNav />
-      <div className="screen-title">Create task</div>
+      <div className="screen-title">Edit task</div>
       <div className="screen-subtitle">Admin-only.</div>
 
       {error ? <div style={{ color: "var(--accent-red)", marginBottom: 10, fontSize: 13 }}>{error}</div> : null}
 
-      {loading ? (
-        <div style={{ padding: 12, fontSize: 13, opacity: 0.75 }}>Loading…</div>
+      {!row ? (
+        <div style={{ opacity: 0.75, fontSize: 13 }}>Task not found (or not visible).</div>
       ) : (
         <div className="card">
           <div style={{ fontWeight: 800, marginBottom: 10 }}>Task</div>
@@ -159,10 +205,16 @@ export default function NewTaskPage() {
           <label>Category ID (optional):</label>
           <input value={categoryId} onChange={(e) => setCategoryId(e.target.value)} style={{ marginBottom: 12 }} disabled={saving} />
 
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <button type="button" onClick={handleCreate} disabled={saving} style={{ opacity: saving ? 0.6 : 1 }}>
-              {saving ? "Creating…" : "Create"}
-            </button>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 12, opacity: 0.75 }}>{saved || ""}</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button type="button" className="secondary" onClick={() => navigate(-1)} disabled={saving}>
+                Back
+              </button>
+              <button type="button" onClick={save} disabled={saving} style={{ opacity: saving ? 0.6 : 1 }}>
+                {saving ? "Saving…" : "Save"}
+              </button>
+            </div>
           </div>
         </div>
       )}

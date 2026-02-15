@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { supabase } from "../lib/supabase"
 import { useSession } from "../auth/SessionProvider"
 import React from "react";
+import { isMissingRelationError, isRelationKnownMissing, rememberMissingRelation } from "../utils/supabaseRelations"
 
 export default function YachtDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -68,26 +69,35 @@ export default function YachtDetailPage() {
 
     setDeleting(true)
 
+    if (isRelationKnownMissing("tasks")) {
+      // Can't check references; let the DB enforce any constraints on delete.
+    } else {
     const { data: yachtTasks, error: yachtTaskErr } = await supabase
-      .from("yacht_tasks")
+      .from("tasks")
       .select("id")
       .eq("yacht_id", id)
       .limit(1)
 
     if (yachtTaskErr) {
+      if (isMissingRelationError(yachtTaskErr)) {
+        rememberMissingRelation("tasks")
+        // Can't check references; let the DB enforce constraints on delete.
+      } else {
       setDeleteError(yachtTaskErr.message)
       setDeleting(false)
       return
+      }
     }
 
     const isReferenced = (yachtTasks?.length ?? 0) > 0
 
     if (isReferenced) {
       setDeleteError(
-        "This yacht cannot be deleted because it is referenced by yacht_tasks."
+        "This yacht cannot be deleted because it is referenced by tasks."
       )
       setDeleting(false)
       return
+    }
     }
 
     // Remove non-historical links first.
@@ -191,7 +201,7 @@ export default function YachtDetailPage() {
 
       <hr />
 
-      {/* Assigned Groups — subtle pill like Assigned Categories */}
+      {/* Group links */}
 
       <div style={{ marginTop: 8, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         <button
@@ -207,23 +217,7 @@ export default function YachtDetailPage() {
             cursor: "pointer",
           }}
         >
-          Assigned Groups
-        </button>
-
-        <button
-          onClick={() => navigate(`/apps/yachts/${id}/tasks`)}
-          style={{
-            background: "var(--border-subtle)",
-            border: "none",
-            borderRadius: 12,
-            padding: "4px 10px",
-            fontSize: 13,
-            fontWeight: 500,
-            color: "var(--text-primary)",
-            cursor: "pointer",
-          }}
-        >
-          Assigned Tasks
+          Groups
         </button>
 
         <button

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 import { useSession } from "../../auth/SessionProvider"
 import EditorNav from "./EditorNav"
+import { isMissingRelationError, isRelationKnownMissing, rememberMissingRelation } from "../../utils/supabaseRelations"
 
 type GroupRow = { id: string; name: string }
 
@@ -32,9 +33,7 @@ export default function EditorEditYachtPage() {
   const [photoUrl, setPhotoUrl] = useState("")
   const [latestEngineerHours, setLatestEngineerHours] = useState<string>("")
 
-  // YM v2: groups are flat (no parent hierarchy).
   const orderedGroups = useMemo(() => [...groups].sort((a, b) => a.name.localeCompare(b.name)), [groups])
-  const formatTreeLabel = (g: GroupRow) => g.name
 
   useEffect(() => {
     if (!session) return
@@ -127,12 +126,22 @@ export default function EditorEditYachtPage() {
     setDeleting(true)
     setError(null)
 
-    // Block deletion if yacht is referenced by yacht_tasks.
-    const { data: yachtTasks, error: ytErr } = await supabase
-      .from("yacht_tasks")
-      .select("id")
-      .eq("yacht_id", yachtId)
-      .limit(1)
+    // Block deletion if yacht is referenced by tasks.
+    let yachtTasks: unknown[] | null = null
+    let ytErr: { message?: string } | null = null
+
+    if (!isRelationKnownMissing("tasks")) {
+      const r = await supabase.from("tasks").select("id").eq("yacht_id", yachtId).limit(1)
+      yachtTasks = (r.data as unknown[]) ?? null
+      ytErr = (r.error as any) ?? null
+      if (ytErr && isMissingRelationError(ytErr)) {
+        rememberMissingRelation("tasks")
+        yachtTasks = []
+        ytErr = null
+      }
+    } else {
+      yachtTasks = []
+    }
 
     if (ytErr) {
       setError(ytErr.message || "Failed to validate yacht references.")
@@ -143,7 +152,7 @@ export default function EditorEditYachtPage() {
     const isReferenced = (yachtTasks?.length ?? 0) > 0
     if (isReferenced) {
       setError(
-        "This yacht cannot be deleted because it is referenced by yacht_tasks."
+        "This yacht cannot be deleted because it is referenced by tasks."
       )
       setDeleting(false)
       return
@@ -191,7 +200,7 @@ export default function EditorEditYachtPage() {
           <option value="">Select group…</option>
           {orderedGroups.map((g) => (
             <option key={g.id} value={g.id}>
-              {formatTreeLabel(g)}
+              {g.name}
             </option>
           ))}
         </select>

@@ -3,34 +3,17 @@ import { supabase } from "../lib/supabase"
 import type { TreeNode } from "../components/TreeDisplay"
 import { useSession } from "../auth/SessionProvider"
 
-/* ---------- Constants ---------- */
-
-const UNCATEGORISED_TASKS_NAME = "Uncategorised Tasks"
-const UNASSIGNED_CATEGORY_ID = "__uncategorised_tasks__"
-
-/* ---------- DB Row Types ---------- */
-
-type TaskCategoryRow = {
-  id: string
-  name: string
-  parent_id: string | null
-  group_id: string
-  is_archived: boolean | null
-}
-
 type TaskRow = {
   id: string
-  name: string
-  description: string | null
-  lineage_id?: string | null
-  version?: number | null
-  is_latest?: boolean | null
+  title: string
+  status: string
+  yacht_id: string
+  category_id: string | null
+  due_date: string | null
+  template_id: string | null
 }
 
-type TaskCategoryMapRow = {
-  task_id: string
-  category_id: string
-}
+type YachtRow = { id: string; name: string }
 
 /* ---------- Hook ---------- */
 
@@ -54,189 +37,61 @@ export function useTaskTree() {
 
       try {
 
-      /* ---------- 1. Load task categories ---------- */
+      /* ---------- 1. Load yachts + tasks ---------- */
 
-      const { data: categories, error: categoryError } = await supabase
-        .from("task_categories")
-        .select("id, name, parent_id, group_id, is_archived")
-        .order("name")
+      const [{ data: yachts, error: yErr }, { data: tasks, error: tErr }] = await Promise.all([
+        supabase.from("yachts").select("id,name").order("name"),
+        supabase.from("tasks").select("id,title,status,yacht_id,category_id,due_date,template_id").limit(2000),
+      ])
 
       if (cancelled) return
 
-      if (categoryError) {
-        setError(categoryError.message)
+      const firstErr = yErr || tErr
+      if (firstErr) {
+        setError(firstErr.message)
         setLoading(false)
         return
       }
 
-      /* ---------- 2. Load task-category links ---------- */
+      const yachtList = (yachts as YachtRow[]) ?? []
+      const taskList = (tasks as TaskRow[]) ?? []
 
-      const { data: links, error: linkError } = await supabase
-        .from("task_category_map")
-        .select("task_id, category_id")
+      const yachtNameById = new Map<string, string>()
+      yachtList.forEach((y) => yachtNameById.set(y.id, y.name))
 
-      if (cancelled) return
+      const UNKNOWN_YACHT_NODE_ID = "__unknown_yacht__"
 
-      if (linkError) {
-        setError(linkError.message)
-        setLoading(false)
-        return
-      }
+      const yachtNodes: TreeNode[] = yachtList.map((y) => ({
+        id: `y:${y.id}`,
+        parentId: null,
+        label: y.name,
+        nodeType: "yacht",
+        meta: y,
+      }))
 
-      /* ---------- 3. Load all tasks ---------- */
+      const hasUnknown = taskList.some((t) => !yachtNameById.has(t.yacht_id))
+      const unknownNode: TreeNode | null = hasUnknown
+        ? {
+            id: UNKNOWN_YACHT_NODE_ID,
+            parentId: null,
+            label: "Unknown yacht",
+            nodeType: "yacht",
+            meta: { isVirtual: true },
+          }
+        : null
 
-      const { data: tasks, error: taskError } = await supabase
-        .from("tasks")
-        .select("id, name, description, lineage_id, version, is_latest")
-        .order("name")
-
-      if (cancelled) return
-
-      if (taskError) {
-        setError(taskError.message)
-        setLoading(false)
-        return
-      }
-
-      const categoriesData = (categories as TaskCategoryRow[]) ?? []
-      const linksData = ((links as TaskCategoryMapRow[]) ?? []).slice()
-
-      /* ---------- 4. Build lookup maps ---------- */
-
-      const taskMap = new Map<string, TaskRow>()
-      ;(tasks as TaskRow[]).forEach((t) => {
-        taskMap.set(t.id, t)
+      const taskNodes: TreeNode[] = taskList.map((t) => {
+        const parentId = yachtNameById.has(t.yacht_id) ? `y:${t.yacht_id}` : UNKNOWN_YACHT_NODE_ID
+        return {
+          id: t.id,
+          parentId,
+          label: t.title,
+          nodeType: "task",
+          meta: t,
+        } as TreeNode
       })
 
-      const categoryMap = new Map<string, TaskCategoryRow>()
-      categoriesData.forEach((c) => {
-        categoryMap.set(c.id, c)
-      })
-
-      /* ---------- 5. Assigned vs unassigned tasks (READ-ONLY) ---------- */
-
-      const assignedTaskIds = new Set(
-        linksData.map((l) => l.task_id)
-      )
-
-      const unassignedTasks = (tasks as TaskRow[]).filter(
-        (t) => !assignedTaskIds.has(t.id)
-      )
-
-      /* ---------- 6. Determine relevant categories ---------- */
-
-      const usedCategoryIds = new Set<string>(
-        linksData.map((l) => l.category_id)
-      )
-
-      // If we have no links (or links are filtered by RLS), still render visible categories
-      // so the Tasks screen isn't blank.
-      const allRelevantCategoryIds = new Set<string>(
-        usedCategoryIds.size > 0
-          ? usedCategoryIds
-          : categoriesData.filter((c) => !c.is_archived).map((c) => c.id)
-      )
-
-      usedCategoryIds.forEach((id) => {
-        let current = categoryMap.get(id)
-        while (current?.parent_id) {
-          allRelevantCategoryIds.add(current.parent_id)
-          current = categoryMap.get(current.parent_id)
-        }
-      })
-
-      /* ---------- 7. Category nodes ---------- */
-
-      const categoryNodes: TreeNode[] =
-        categoriesData
-          .filter((c) => allRelevantCategoryIds.has(c.id))
-          .map((c) => {
-            // If a category's parent isn't included (archived, hidden by RLS, or missing),
-            // promote it to a root node so the tree isn't blank.
-            const parentIncluded =
-              !!c.parent_id && allRelevantCategoryIds.has(c.parent_id)
-
-            return {
-              id: c.id,
-              parentId: parentIncluded ? c.parent_id : null,
-              label: c.name,
-              nodeType: "category",
-              meta: c,
-            }
-          })
-
-      /* ---------- 8. Task nodes (assigned) ---------- */
-
-      const renderedCategoryIds = new Set(categoryNodes.map((n) => n.id))
-
-      const taskNodesRaw: TreeNode[] =
-        linksData
-          .map((l) => {
-            const task = taskMap.get(l.task_id)
-            if (!task) return null
-
-            return {
-              id: task.id,
-              parentId: l.category_id,
-              label: task.name,
-              nodeType: "task",
-              meta: task,
-            } as TreeNode
-          })
-          .filter(Boolean) as TreeNode[]
-
-      /* ---------- 9. Uncategorised Tasks (virtual, read-only) ---------- */
-
-      const hasRealUncategorisedCategory = categoriesData.some(
-        (c) => !c.is_archived && c.name === UNCATEGORISED_TASKS_NAME
-      )
-
-      // If any linked tasks point to a category that isn't rendered, fall back to the virtual bucket.
-      const orphanedLinkedTaskNodes = taskNodesRaw.filter(
-        (t) => !!t.parentId && !renderedCategoryIds.has(t.parentId)
-      )
-
-      const virtualUncategorisedNode: TreeNode | null =
-        (unassignedTasks.length > 0 || orphanedLinkedTaskNodes.length > 0) && !hasRealUncategorisedCategory
-          ? {
-              id: UNASSIGNED_CATEGORY_ID,
-              parentId: null,
-              label: UNCATEGORISED_TASKS_NAME,
-              nodeType: "category",
-              meta: { isVirtual: true },
-            }
-          : null
-
-      const taskNodes: TreeNode[] =
-        virtualUncategorisedNode
-          ? taskNodesRaw.map((t) =>
-              t.parentId && !renderedCategoryIds.has(t.parentId)
-                ? { ...t, parentId: UNASSIGNED_CATEGORY_ID }
-                : t
-            )
-          : taskNodesRaw
-
-      const unassignedTaskNodes: TreeNode[] =
-        virtualUncategorisedNode
-          ? unassignedTasks.map((t) => ({
-              id: t.id,
-              parentId: UNASSIGNED_CATEGORY_ID,
-              label: t.name,
-              nodeType: "task",
-              meta: t,
-            }))
-          : []
-
-      /* ---------- 10. Combine & publish ---------- */
-
-      const allNodes: TreeNode[] = [
-        ...categoryNodes,
-        ...(virtualUncategorisedNode ? [virtualUncategorisedNode] : []),
-        ...taskNodes,
-        ...unassignedTaskNodes,
-      ]
-
-      setNodes(allNodes)
+      setNodes([...(unknownNode ? [unknownNode] : []), ...yachtNodes, ...taskNodes])
       setLoading(false)
       } finally {
         window.clearTimeout(timeoutId)

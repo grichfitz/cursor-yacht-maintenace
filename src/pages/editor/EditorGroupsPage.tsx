@@ -5,7 +5,7 @@ import EditorNav from "./EditorNav"
 import { useSession } from "../../auth/SessionProvider"
 import TreeDisplay, { type TreeNode } from "../../components/TreeDisplay"
 
-type GroupRow = { id: string; name: string }
+type GroupRow = { id: string; name: string; parent_group_id: string | null }
 
 export default function EditorGroupsPage() {
   const { session } = useSession()
@@ -16,11 +16,14 @@ export default function EditorGroupsPage() {
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined)
 
   const treeNodes = useMemo(() => {
+    const idSet = new Set(groups.map((g) => g.id))
+
+    // If a parent is missing (hidden by RLS or deleted), promote to root.
     return [...groups]
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((g) => ({
         id: g.id,
-        parentId: null,
+        parentId: g.parent_group_id && idSet.has(g.parent_group_id) ? g.parent_group_id : null,
         label: g.name,
         nodeType: "group",
         meta: g,
@@ -33,7 +36,7 @@ export default function EditorGroupsPage() {
 
     const { data, error: loadErr } = await supabase
       .from("groups")
-      .select("id,name")
+      .select("id,name,parent_group_id")
       .order("name")
 
     if (loadErr) {

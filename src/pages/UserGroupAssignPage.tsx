@@ -68,7 +68,7 @@ export default function UserGroupAssignPage() {
       }
 
       const { data: links, error: linkErr } = await supabase
-        .from("group_memberships")
+        .from("group_members")
         .select("group_id")
         .eq("user_id", userId)
 
@@ -126,7 +126,7 @@ export default function UserGroupAssignPage() {
       <hr />
 
       <div style={{ fontWeight: 600, marginBottom: 8 }}>
-        Assigned Groups{userLabel ? ` for ${userLabel}` : ""}
+        Groups{userLabel ? ` for ${userLabel}` : ""}
       </div>
 
       {!isAdmin ? (
@@ -184,8 +184,8 @@ export default function UserGroupAssignPage() {
             <GenericTreeAssignPage
               targetId={userId}
               nodes={nodes}
-              // Schema source of truth: group_memberships(user_id, group_id)
-              mapTable="group_memberships"
+              // Schema source of truth: group_members(user_id, group_id)
+              mapTable="group_members"
               mapTargetField="user_id"
               mapNodeField="group_id"
               editBasePath="/groups"

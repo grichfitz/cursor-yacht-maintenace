@@ -27,8 +27,8 @@ export default function UsersPage() {
     setLoading(true)
     setError(null)
 
-    // YM v2: there is no public.users directory table to list users from.
-    setError("User directory is not available in YM v2 (no public.users table).")
+    // No user directory table to list users from.
+    setError("User directory is not available.")
     setUsers([])
     setGroupCountByUserId({})
     setLoading(false)
@@ -68,12 +68,6 @@ export default function UsersPage() {
       {error && (
         <div style={{ color: "var(--accent-red)", marginBottom: 10, fontSize: 13 }}>{error}</div>
       )}
-
-      <div className="card">
-        <button type="button" className="secondary" style={{ width: "100%" }} onClick={() => navigate("/users/new")}>
-          New user
-        </button>
-      </div>
 
       <div className="card" style={{ paddingBottom: 14 }}>
         <div style={{ fontWeight: 800, marginBottom: 10 }}>Directory</div>

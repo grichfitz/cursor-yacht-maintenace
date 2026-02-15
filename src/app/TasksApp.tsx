@@ -3,17 +3,14 @@ import TreeDisplay from "../components/TreeDisplay"
 import type { TreeNode } from "../components/TreeDisplay"
 import { useTaskTree } from "../hooks/useTaskTree"
 import React from "react";
-import { CheckSquare, Folder } from "lucide-react"
+import { CheckSquare, Ship } from "lucide-react"
 import { pickBadgeVariant } from "../ui/badgeColors"
+import EditorNav from "../pages/editor/EditorNav"
 
 export default function TasksApp() {
   const navigate = useNavigate()
   const { nodes, loading, error } = useTaskTree()
-  const rootIds = (nodes as TreeNode[]).filter((n) => n.parentId === null).map((n) => n.id)
-  const visibleNodes = (nodes as TreeNode[]).filter((n) => {
-    if (n.nodeType !== "task") return true
-    return (n.meta as any)?.is_latest !== false
-  })
+  const visibleNodes = nodes as TreeNode[]
 
   if (loading) {
     return <div className="screen">Loading…</div>
@@ -21,7 +18,9 @@ export default function TasksApp() {
 
   return (
     <div className="screen" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <div className="screen-title">Tasks</div>
+      <EditorNav />
+      <div className="screen-title">Editor · Tasks</div>
+      <div className="screen-subtitle">Admin-only.</div>
 
       {error && (
         <div
@@ -51,11 +50,11 @@ export default function TasksApp() {
           nodes={visibleNodes as TreeNode[]}
           defaultExpandedIds={[]}
           renderIcon={(node) => {
-            if (node.nodeType === "category") {
+            if (node.nodeType === "yacht") {
               const variant = pickBadgeVariant(node.id)
               return (
                 <span className={`tree-icon-badge tree-icon-badge--${variant}`}>
-                  <Folder size={16} />
+                  <Ship size={16} />
                 </span>
               )
             }
@@ -72,7 +71,7 @@ export default function TasksApp() {
           onSelect={(node) => {
             // Tasks are leaf nodes only
             if (node.nodeType === "task") {
-              navigate(`/apps/tasks/${node.id}`)
+              navigate(`/editor/tasks/${node.id}`)
             }
           }}
         />
@@ -81,7 +80,7 @@ export default function TasksApp() {
       <button
         type="button"
         className="cta-button"
-        onClick={() => navigate("/apps/tasks/new")}
+        onClick={() => navigate("/editor/tasks/new")}
       >
         + Add Task
       </button>

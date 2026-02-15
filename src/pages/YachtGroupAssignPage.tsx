@@ -55,7 +55,7 @@ export default function YachtGroupAssignPage() {
       <hr />
 
       <div style={{ fontWeight: 600, marginBottom: 8 }}>
-        Assigned Groups{yachtName ? ` for ${yachtName}` : ""}
+        Groups{yachtName ? ` for ${yachtName}` : ""}
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", paddingBottom: 8 }}>

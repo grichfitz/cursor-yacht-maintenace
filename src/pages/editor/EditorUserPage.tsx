@@ -42,7 +42,7 @@ export default function EditorUserPage() {
 
       if (cancelled) return
 
-      // YM v2: no public.users directory table; show minimal identity.
+      // No user directory table; show minimal identity.
       setDisplayName("")
       setEmail("")
       setRole("crew")
@@ -62,7 +62,7 @@ export default function EditorUserPage() {
     setError(null)
 
     setSaving(false)
-    setError("Role updates are not available in YM v2 (no public.users table).")
+    setError("Role updates are not available.")
   }
 
   if (!userId) return null
@@ -137,7 +137,7 @@ export default function EditorUserPage() {
               <GenericTreeAssignPage
                 targetId={userId}
                 nodes={nodes}
-                mapTable="group_memberships"
+                mapTable="group_members"
                 mapTargetField="user_id"
                 mapNodeField="group_id"
               />

@@ -4,14 +4,13 @@ import RequireRole from "../components/RequireRole"
 
 import DashboardPage from "../pages/DashboardPage"
 import TasksPage from "../pages/TasksPage"
-import TaskInstancePage from "../pages/TaskInstancePage"
+import TaskPage from "../pages/TaskPage"
 import YachtsPage from "../pages/YachtsPage"
 import YachtPage from "../pages/YachtPage"
 import ReportsPage from "../pages/ReportsPage"
 import ProfilePage from "../pages/ProfilePage"
 import UsersPage from "../pages/UsersPage"
-import AdminTemplatesPage from "../pages/AdminTemplatesPage"
-import GroupTemplatesPage from "../pages/GroupTemplatesPage"
+import NewTaskPage from "../pages/NewTaskPage"
 
 import EditorYachtsPage from "../pages/editor/EditorYachtsPage"
 import EditorGroupsPage from "../pages/editor/EditorGroupsPage"
@@ -24,7 +23,8 @@ import EditorNewCategoryPage from "../pages/editor/EditorNewCategoryPage"
 import EditorEditYachtPage from "../pages/editor/EditorEditYachtPage"
 import EditorEditGroupPage from "../pages/editor/EditorEditGroupPage"
 import EditorEditCategoryPage from "../pages/editor/EditorEditCategoryPage"
-import NewUserPage from "../pages/NewUserPage"
+import EditorEditTaskPage from "../pages/editor/EditorEditTaskPage"
+import TasksApp from "./TasksApp"
 
 function EditorRoute({ children }: { children: React.ReactNode }) {
   return <RequireRole allow={["admin"]}>{children}</RequireRole>
@@ -48,6 +48,8 @@ export default function AppRoutes() {
       {/* Back-compat redirects (old app URLs) */}
       <Route path="/apps" element={<Navigate to="/dashboard" replace />} />
       <Route path="/apps/tasks" element={<Navigate to="/tasks" replace />} />
+      <Route path="/apps/tasks/new" element={<Navigate to="/editor/tasks/new" replace />} />
+      <Route path="/apps/tasks/:taskId" element={<Navigate to="/editor/tasks/:taskId" replace />} />
       <Route path="/apps/yachts" element={<Navigate to="/yachts" replace />} />
       <Route path="/apps/reports" element={<Navigate to="/reports" replace />} />
       <Route path="/apps/groups" element={<Navigate to="/editor/groups" replace />} />
@@ -55,7 +57,7 @@ export default function AppRoutes() {
       <Route path="/assigments" element={<Navigate to="/dashboard" replace />} />
 
       <Route path="/tasks" element={<TasksPage />} />
-      <Route path="/tasks/:taskInstanceId" element={<TaskInstancePage />} />
+      <Route path="/tasks/:taskId" element={<TaskPage />} />
 
       <Route path="/yachts" element={<YachtsPage />} />
       <Route path="/yachts/:yachtId" element={<YachtPage />} />
@@ -64,25 +66,7 @@ export default function AppRoutes() {
 
       <Route path="/profile" element={<ProfilePage />} />
 
-      <Route
-        path="/admin/templates"
-        element={
-          <EditorRoute>
-            <AdminTemplatesPage />
-          </EditorRoute>
-        }
-      />
-
-      <Route
-        path="/groups/:groupId/templates"
-        element={
-          <RequireRole allow={["admin", "manager"]}>
-            <GroupTemplatesPage />
-          </RequireRole>
-        }
-      />
-
-      {/* Legacy template/assignment subsystem removed (YM v2) */}
+      {/* Legacy template subsystem removed (canonical v2) */}
       <Route path="/templates" element={<Navigate to="/dashboard" replace />} />
       <Route path="/templates/:id" element={<Navigate to="/dashboard" replace />} />
       <Route path="/assignments" element={<Navigate to="/dashboard" replace />} />
@@ -92,14 +76,6 @@ export default function AppRoutes() {
         element={
           <EditorRoute>
             <UsersPage />
-          </EditorRoute>
-        }
-      />
-      <Route
-        path="/users/new"
-        element={
-          <EditorRoute>
-            <NewUserPage />
           </EditorRoute>
         }
       />
@@ -191,6 +167,32 @@ export default function AppRoutes() {
         element={
           <EditorRoute>
             <EditorCategoriesPage />
+          </EditorRoute>
+        }
+      />
+
+      {/* Task library editor */}
+      <Route
+        path="/editor/tasks"
+        element={
+          <EditorRoute>
+            <TasksApp />
+          </EditorRoute>
+        }
+      />
+      <Route
+        path="/editor/tasks/new"
+        element={
+          <EditorRoute>
+            <NewTaskPage />
+          </EditorRoute>
+        }
+      />
+      <Route
+        path="/editor/tasks/:taskId"
+        element={
+          <EditorRoute>
+            <EditorEditTaskPage />
           </EditorRoute>
         }
       />
