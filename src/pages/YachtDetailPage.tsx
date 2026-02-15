@@ -23,14 +23,14 @@ export default function YachtDetailPage() {
 
     supabase
       .from("yachts")
-      .select("name, make_model, location")
+      .select("name")
       .eq("id", id)
       .single()
       .then(({ data }) => {
         if (!data) return
         setName(data.name)
-        setMakeModel(data.make_model ?? "")
-        setLocation(data.location ?? "")
+        setMakeModel("")
+        setLocation("")
       })
   }, [id, session])
 
@@ -43,8 +43,6 @@ export default function YachtDetailPage() {
       .from("yachts")
       .update({
         name,
-        make_model: makeModel || null,
-        location: location || null,
       })
       .eq("id", id)
 
@@ -70,19 +68,6 @@ export default function YachtDetailPage() {
 
     setDeleting(true)
 
-    // Block deletion if yacht is referenced by execution/history tables.
-    const { data: contexts, error: ctxErr } = await supabase
-      .from("task_contexts")
-      .select("id")
-      .eq("yacht_id", id)
-      .limit(1)
-
-    if (ctxErr) {
-      setDeleteError(ctxErr.message)
-      setDeleting(false)
-      return
-    }
-
     const { data: yachtTasks, error: yachtTaskErr } = await supabase
       .from("yacht_tasks")
       .select("id")
@@ -95,12 +80,11 @@ export default function YachtDetailPage() {
       return
     }
 
-    const isReferenced =
-      (contexts?.length ?? 0) > 0 || (yachtTasks?.length ?? 0) > 0
+    const isReferenced = (yachtTasks?.length ?? 0) > 0
 
     if (isReferenced) {
       setDeleteError(
-        "This yacht cannot be deleted because it is referenced by execution/history (task_contexts or yacht_tasks)."
+        "This yacht cannot be deleted because it is referenced by yacht_tasks."
       )
       setDeleting(false)
       return

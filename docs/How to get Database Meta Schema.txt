@@ -1,183 +1,238 @@
 /* =========================================================
-   MARINE TASK APP — FULL DATABASE SNAPSHOT (POST-RLS)
+   MARINE TASK APP — FULL DATABASE SNAPSHOT (v2)
+   Cleaner + More Complete + Supabase-aware
    ========================================================= */
 
+with user_schemas as (
+  select schema_name
+  from information_schema.schemata
+  where schema_name not in (
+    'pg_catalog',
+    'information_schema',
+    'pg_toast',
+    'extensions'
+  )
+)
+
+-- =========================================================
+-- SCHEMAS
+-- =========================================================
 select
-  'COLUMNS' as section,
-  table_name,
-  column_name,
-  data_type,
-  is_nullable,
-  column_default,
-  null,
-  null
-from information_schema.columns
-where table_schema = 'public'
+  'SCHEMAS' as section,
+  s.schema_name::text as a1,
+  null::text as a2,
+  null::text as a3,
+  null::text as a4,
+  null::text as a5,
+  null::text as a6,
+  null::text as a7
+from user_schemas s
 
 union all
 
+-- =========================================================
+-- TABLES (includes partitioned)
+-- =========================================================
+select
+  'TABLES',
+  n.nspname::text,
+  c.relname::text,
+  case c.relkind
+    when 'r' then 'table'
+    when 'p' then 'partitioned_table'
+    when 'v' then 'view'
+    when 'm' then 'materialized_view'
+    when 'f' then 'foreign_table'
+  end,
+  null,null,null,null
+from pg_class c
+join pg_namespace n on n.oid = c.relnamespace
+where n.nspname in (select schema_name from user_schemas)
+  and c.relkind in ('r','p','v','m','f')
+
+union all
+
+-- =========================================================
+-- COLUMNS (includes generated)
+-- =========================================================
+select
+  'COLUMNS',
+  n.nspname::text,
+  c.relname::text,
+  a.attname::text,
+  pg_catalog.format_type(a.atttypid, a.atttypmod)::text,
+  case when a.attnotnull then 'NO' else 'YES' end,
+  pg_get_expr(ad.adbin, ad.adrelid)::text,
+  case when a.attgenerated <> '' then 'GENERATED' else null end
+from pg_attribute a
+join pg_class c on a.attrelid = c.oid
+join pg_namespace n on n.oid = c.relnamespace
+left join pg_attrdef ad on ad.adrelid = a.attrelid and ad.adnum = a.attnum
+where n.nspname in (select schema_name from user_schemas)
+  and a.attnum > 0
+  and not a.attisdropped
+
+union all
+
+-- =========================================================
+-- CONSTRAINTS (includes CHECK definitions)
+-- =========================================================
 select
   'CONSTRAINTS',
-  tc.table_name,
-  tc.constraint_name,
-  tc.constraint_type,
-  kcu.column_name,
-  ccu.table_name,
-  ccu.column_name,
-  null
-from information_schema.table_constraints tc
-left join information_schema.key_column_usage kcu
-  on tc.constraint_name = kcu.constraint_name
-left join information_schema.constraint_column_usage ccu
-  on tc.constraint_name = ccu.constraint_name
-where tc.table_schema = 'public'
+  n.nspname::text,
+  c.relname::text,
+  con.conname::text,
+  con.contype::text,
+  pg_get_constraintdef(con.oid)::text,
+  null,null
+from pg_constraint con
+join pg_class c on con.conrelid = c.oid
+join pg_namespace n on n.oid = c.relnamespace
+where n.nspname in (select schema_name from user_schemas)
 
 union all
 
--- Foreign keys with update/delete rules
-select
-  'FOREIGN_KEYS',
-  tc.table_name,
-  tc.constraint_name,
-  rc.update_rule,
-  rc.delete_rule,
-  ccu.table_name,
-  ccu.column_name,
-  null
-from information_schema.table_constraints tc
-join information_schema.referential_constraints rc
-  on tc.constraint_name = rc.constraint_name
-join information_schema.constraint_column_usage ccu
-  on tc.constraint_name = ccu.constraint_name
-where tc.constraint_type = 'FOREIGN KEY'
-  and tc.table_schema = 'public'
-
-union all
-
+-- =========================================================
+-- INDEXES
+-- =========================================================
 select
   'INDEXES',
-  tablename,
-  indexname,
-  indexdef,
-  null,
-  null,
-  null,
-  null
+  schemaname::text,
+  tablename::text,
+  indexname::text,
+  indexdef::text,
+  null,null,null
 from pg_indexes
-where schemaname = 'public'
+where schemaname in (select schema_name from user_schemas)
 
 union all
 
+-- =========================================================
+-- RLS POLICIES
+-- =========================================================
 select
   'RLS_POLICIES',
-  tablename,
-  policyname,
-  cmd,
+  schemaname::text,
+  tablename::text,
+  policyname::text,
+  cmd::text,
   roles::text,
-  qual,
-  with_check,
-  null
+  qual::text,
+  with_check::text
 from pg_policies
-where schemaname = 'public'
+where schemaname in (select schema_name from user_schemas)
 
 union all
 
--- Compact per-table RLS summary
-select
-  'RLS_SUMMARY',
-  tablename,
-  string_agg(policyname || ' (' || cmd || ')', ', '),
-  null,
-  null,
-  null,
-  null,
-  null
-from pg_policies
-where schemaname = 'public'
-group by tablename
-
-union all
-
+-- =========================================================
+-- RLS ENABLED
+-- =========================================================
 select
   'RLS_ENABLED',
-  relname,
-  relrowsecurity::text,
-  null,
-  null,
-  null,
-  null,
-  null
-from pg_class
-where relnamespace = 'public'::regnamespace
+  n.nspname::text,
+  c.relname::text,
+  c.relrowsecurity::text,
+  c.relforcerowsecurity::text,
+  null,null,null
+from pg_class c
+join pg_namespace n on n.oid = c.relnamespace
+where n.nspname in (select schema_name from user_schemas)
+  and c.relkind in ('r','p')
 
 union all
 
+-- =========================================================
+-- FUNCTIONS
+-- =========================================================
 select
   'FUNCTIONS',
-  p.proname,
-  pg_get_functiondef(p.oid),
-  null,
-  null,
-  null,
-  null,
-  null
+  n.nspname::text,
+  p.proname::text,
+  pg_get_function_identity_arguments(p.oid)::text,
+  pg_get_functiondef(p.oid)::text,
+  null,null,null
 from pg_proc p
 join pg_namespace n on n.oid = p.pronamespace
-where n.nspname = 'public'
+where n.nspname in (select schema_name from user_schemas)
 
 union all
 
+-- =========================================================
+-- VIEWS
+-- =========================================================
 select
   'VIEWS',
-  table_name,
-  view_definition,
-  null,
-  null,
-  null,
-  null,
-  null
-from information_schema.views
-where table_schema = 'public'
+  schemaname::text,
+  viewname::text,
+  definition::text,
+  null,null,null,null
+from pg_views
+where schemaname in (select schema_name from user_schemas)
 
 union all
 
+-- =========================================================
+-- TRIGGERS
+-- =========================================================
 select
   'TRIGGERS',
-  event_object_table,
-  trigger_name,
+  event_object_schema::text,
+  event_object_table::text,
+  trigger_name::text,
   action_timing || ' ' || event_manipulation,
-  action_statement,
-  null,
-  null,
-  null
+  action_statement::text,
+  null,null
 from information_schema.triggers
-where trigger_schema = 'public'
+where event_object_schema in (select schema_name from user_schemas)
 
 union all
 
-select
-  'EXTENSIONS',
-  extname,
-  extversion,
-  null,
-  null,
-  null,
-  null,
-  null
-from pg_extension
-
-union all
-
+-- =========================================================
+-- ENUMS
+-- =========================================================
 select
   'ENUMS',
-  t.typname,
-  e.enumlabel,
-  null,
-  null,
-  null,
-  null,
-  null
+  n.nspname::text,
+  t.typname::text,
+  e.enumlabel::text,
+  null,null,null,null
 from pg_type t
 join pg_enum e on t.oid = e.enumtypid
+join pg_namespace n on n.oid = t.typnamespace
+where n.nspname in (select schema_name from user_schemas)
 
-order by 1, 2;
+union all
+
+-- =========================================================
+-- TABLE GRANTS
+-- =========================================================
+select
+  'TABLE_GRANTS',
+  table_schema::text,
+  table_name::text,
+  grantee::text,
+  privilege_type::text,
+  is_grantable::text,
+  grantor::text,
+  null
+from information_schema.role_table_grants
+where table_schema in (select schema_name from user_schemas)
+
+union all
+
+-- =========================================================
+-- ROLES (non-system)
+-- =========================================================
+select
+  'ROLES',
+  rolname::text,
+  rolcanlogin::text,
+  rolinherit::text,
+  rolcreaterole::text,
+  rolcreatedb::text,
+  rolreplication::text,
+  rolbypassrls::text
+from pg_roles
+where rolname not like 'pg_%'
+
+order by 1,2,3,4;

@@ -40,25 +40,12 @@ export default function EditorUserPage() {
       setError(null)
       setSaved(null)
 
-      const { data, error } = await supabase
-        .from("users")
-        .select("display_name, email, role")
-        .eq("id", userId)
-        .maybeSingle()
-
       if (cancelled) return
 
-      if (error) {
-        setError(error.message)
-        setEmail("")
-        setRole("crew")
-        setLoading(false)
-        return
-      }
-
-      setDisplayName(String((data as any)?.display_name ?? ""))
-      setEmail(String((data as any)?.email ?? ""))
-      setRole(normalizeRole((data as any)?.role))
+      // YM v2: no public.users directory table; show minimal identity.
+      setDisplayName("")
+      setEmail("")
+      setRole("crew")
       setLoading(false)
     }
 
@@ -74,15 +61,8 @@ export default function EditorUserPage() {
     setSaved(null)
     setError(null)
 
-    const { error } = await supabase.from("users").update({ role }).eq("id", userId)
-    if (error) {
-      setError(error.message)
-      setSaving(false)
-      return
-    }
-
     setSaving(false)
-    setSaved("Saved.")
+    setError("Role updates are not available in YM v2 (no public.users table).")
   }
 
   if (!userId) return null
@@ -157,7 +137,7 @@ export default function EditorUserPage() {
               <GenericTreeAssignPage
                 targetId={userId}
                 nodes={nodes}
-                mapTable="user_group_links"
+                mapTable="group_memberships"
                 mapTargetField="user_id"
                 mapNodeField="group_id"
               />

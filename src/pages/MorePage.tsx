@@ -18,17 +18,8 @@ export default function MorePage() {
         return
       }
 
-      // Prefer directory display_name if available; fall back to auth email.
-      const { data } = await supabase
-        .from("users")
-        .select("display_name, email")
-        .eq("id", user.id)
-        .single()
-
-      const displayName = (data as any)?.display_name as string | null | undefined
-      const email = (data as any)?.email as string | null | undefined
-
-      setUserLabel((displayName?.trim() || email?.trim() || user.email || "").trim())
+      const displayName = (user.user_metadata as any)?.display_name as string | null | undefined
+      setUserLabel((displayName?.trim() || user.email || "").trim())
     }
 
     load()

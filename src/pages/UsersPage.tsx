@@ -11,11 +11,6 @@ type UserRow = {
   role: string | null
 }
 
-type UserGroupLinkRow = {
-  user_id: string
-  group_id: string
-}
-
 export default function UsersPage() {
   const navigate = useNavigate()
   const { session } = useSession()
@@ -32,34 +27,10 @@ export default function UsersPage() {
     setLoading(true)
     setError(null)
 
-    const [{ data: u, error: uErr }, { data: links, error: lErr }] = await Promise.all([
-      supabase.from("users").select("id,display_name,email,role").order("display_name"),
-      supabase.from("user_group_links").select("user_id,group_id"),
-    ])
-
-    if (uErr || lErr) {
-      setError(uErr?.message || lErr?.message || "Failed to load users.")
-      setUsers([])
-      setGroupCountByUserId({})
-      setLoading(false)
-      return
-    }
-
-    const rows = ((u as any[]) ?? []).map((r) => ({
-      id: String(r.id),
-      display_name: (r.display_name ?? null) as string | null,
-      email: (r.email ?? null) as string | null,
-      role: (r.role ?? null) as string | null,
-    })) as UserRow[]
-
-    const counts: Record<string, number> = {}
-    for (const l of ((links as any[]) ?? []) as UserGroupLinkRow[]) {
-      if (!l?.user_id || !l?.group_id) continue
-      counts[l.user_id] = (counts[l.user_id] ?? 0) + 1
-    }
-
-    setUsers(rows)
-    setGroupCountByUserId(counts)
+    // YM v2: there is no public.users directory table to list users from.
+    setError("User directory is not available in YM v2 (no public.users table).")
+    setUsers([])
+    setGroupCountByUserId({})
     setLoading(false)
   }
 

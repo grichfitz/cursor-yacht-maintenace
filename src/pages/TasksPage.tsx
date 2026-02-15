@@ -7,14 +7,10 @@ import { useSession } from "../auth/SessionProvider"
 type TaskInstanceRow = {
   id: string
   yacht_id: string
-  status: "pending" | "assigned" | "completed" | "verified"
-  due_at: string | null
-  template_name: string
-}
-
-type AssignmentRow = {
-  task_instance_id: string
-  assigned_at: string
+  status: "open" | "pending_review" | "approved"
+  due_date: string | null
+  title: string
+  owner_user_id: string | null
 }
 
 export default function TasksPage() {
@@ -26,8 +22,8 @@ export default function TasksPage() {
 
   const byDue = useMemo(() => {
     return [...tasks].sort((a, b) => {
-      const ad = a.due_at ? new Date(a.due_at).getTime() : Number.POSITIVE_INFINITY
-      const bd = b.due_at ? new Date(b.due_at).getTime() : Number.POSITIVE_INFINITY
+      const ad = a.due_date ? new Date(a.due_date).getTime() : Number.POSITIVE_INFINITY
+      const bd = b.due_date ? new Date(b.due_date).getTime() : Number.POSITIVE_INFINITY
       return ad - bd
     })
   }, [tasks])
@@ -51,30 +47,12 @@ export default function TasksPage() {
         return
       }
 
-      const { data: assignments, error: aErr } = await supabase
-        .from("task_assignments")
-        .select("task_instance_id, assigned_at")
-        .eq("assigned_to", user.id)
-        .order("assigned_at", { ascending: false })
-
-      if (aErr) {
-        setError(aErr.message)
-        setLoading(false)
-        return
-      }
-
-      const ids = ((assignments as AssignmentRow[]) ?? []).map((a) => a.task_instance_id)
-
-      if (ids.length === 0) {
-        setTasks([])
-        setLoading(false)
-        return
-      }
-
+      // v1 "assigned" => v2 status=open AND owner_user_id = me
       const { data: instances, error: iErr } = await supabase
-        .from("task_instances")
-        .select("id,yacht_id,status,due_at,template_name")
-        .in("id", ids)
+        .from("yacht_tasks")
+        .select("id,yacht_id,status,due_date,title,owner_user_id")
+        .eq("status", "open")
+        .eq("owner_user_id", user.id)
 
       if (iErr) {
         setError(iErr.message)
@@ -142,9 +120,9 @@ export default function TasksPage() {
               onClick={() => navigate(`/tasks/${t.id}`)}
             >
               <div className="list-button-main">
-                <div className="list-button-title">{t.template_name}</div>
+                <div className="list-button-title">{t.title}</div>
                 <div className="list-button-subtitle">
-                  {t.due_at ? `Due ${new Date(t.due_at).toLocaleDateString()}` : "No due date"} ·{" "}
+                  {t.due_date ? `Due ${new Date(t.due_date).toLocaleDateString()}` : "No due date"} ·{" "}
                   {t.status}
                 </div>
               </div>

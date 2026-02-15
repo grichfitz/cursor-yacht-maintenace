@@ -25,42 +25,25 @@ export default function UserDetailPage() {
     if (!session) return
     if (!userId) return
 
-    supabase
-      .from("users")
-      .select("id, display_name, email")
-      .eq("id", userId)
-      .single()
-      .then(({ data }) => {
-        const row = data as UserRow | null
-        if (!row) return
-
-        setDisplayName(row.display_name ?? "")
-        setEmail(row.email ?? "")
-      })
+    // YM v2: no public.users directory table to load from.
+    setDisplayName("")
+    setEmail("")
   }, [userId, session])
 
   const save = async () => {
     if (!userId) return
+    setSaveError("User editing is not available in YM v2 (no public.users table).")
+    return
+
     setSaving(true)
     setSaveError(null)
 
-    const { error } = await supabase
-      .from("users")
-      .update({
-        display_name: displayName || null,
-      })
-      .eq("id", userId)
-
-    if (error) {
-      setSaveError(error.message)
-      console.error("Error saving user:", error)
-    }
-
-    setSaving(false)
   }
 
   const handleDelete = async () => {
     if (!userId) return
+    setDeleteError("User deletion is not available in YM v2 (no public.users table).")
+    return
 
     setDeleteError(null)
 
@@ -107,31 +90,7 @@ export default function UserDetailPage() {
       return
     }
 
-    // Remove non-historical links first.
-    const linkDeletes = await Promise.all([
-      supabase.from("user_group_links").delete().eq("user_id", userId),
-      supabase.from("user_role_links").delete().eq("user_id", userId),
-      supabase.from("app_user_links").delete().eq("user_id", userId),
-      supabase.from("yacht_user_links").delete().eq("user_id", userId),
-    ])
-
-    const linkError = linkDeletes.find((r) => r.error)?.error
-    if (linkError) {
-      setDeleteError(linkError.message)
-      setDeleting(false)
-      return
-    }
-
-    const { error: delErr } = await supabase.from("users").delete().eq("id", userId)
-
-    if (delErr) {
-      setDeleteError(delErr.message)
-      setDeleting(false)
-      return
-    }
-
-    setDeleting(false)
-    navigate("/apps/users", { replace: true })
+    // YM v2: no public.users directory table to delete from.
   }
 
   if (!userId) return null

@@ -16,7 +16,6 @@ type GroupLinkRow = {
 type GroupRow = {
   id: string
   name: string
-  parent_group_id: string | null
 }
 
 const GLOBAL_GROUP_NAME = "Global Library"
@@ -64,23 +63,6 @@ export default function ProfilePage() {
         return
       }
 
-      // Public directory row (RLS scoped) for display_name + email.
-      const { data: row, error: rowErr } = await supabase
-        .from("users")
-        .select("id, display_name, email")
-        .eq("id", user.id)
-        .single()
-
-      if (rowErr) {
-        if (!cancelled) {
-          setError(rowErr.message)
-          setLoading(false)
-        }
-        return
-      }
-
-      const userRow = row as UserRow
-
       // Description lives in auth user metadata (no schema changes).
       const metaDescription =
         (user.user_metadata as any)?.profile_description ??
@@ -89,7 +71,7 @@ export default function ProfilePage() {
 
       // Memberships (exclude Global Library in display).
       const { data: links, error: linksErr } = await supabase
-        .from("user_group_links")
+        .from("group_memberships")
         .select("group_id, groups(name)")
         .eq("user_id", user.id)
 
@@ -112,60 +94,16 @@ export default function ProfilePage() {
         .filter(Boolean)
         .filter((n) => n !== GLOBAL_GROUP_NAME)
 
-      // Load visible group tree so we can display "your groups + children".
-      const { data: visibleGroups, error: vgErr } = await supabase
-        .from("groups")
-        .select("id, name, parent_group_id")
-        .order("name")
-
-      if (vgErr) {
-        if (!cancelled) {
-          setError(vgErr.message)
-          setLoading(false)
-        }
-        return
-      }
-
-      const visible = (visibleGroups as GroupRow[]) ?? []
-      const idByName = new Map<string, string>()
-      const groupById = new Map<string, GroupRow>()
-      visible.forEach((g) => {
-        idByName.set(g.name, g.id)
-        groupById.set(g.id, g)
-      })
-
-      const childrenMap = new Map<string, string[]>()
-      visible.forEach((g) => {
-        if (!g.parent_group_id) return
-        const arr = childrenMap.get(g.parent_group_id) ?? []
-        arr.push(g.id)
-        childrenMap.set(g.parent_group_id, arr)
-      })
-
-      const getDescendants = (id: string): string[] => {
-        const kids = childrenMap.get(id) ?? []
-        return kids.flatMap((k) => [k, ...getDescendants(k)])
-      }
-
-      const operationalRootIds = operationalMembershipNames
-        .map((n) => idByName.get(n))
-        .filter(Boolean) as string[]
-
-      const operationalTreeIds = new Set<string>(operationalRootIds)
-      operationalRootIds.forEach((id) => {
-        getDescendants(id).forEach((d) => operationalTreeIds.add(d))
-      })
-
-      const operationalTreeNames = Array.from(operationalTreeIds)
-        .map((id) => groupById.get(id)?.name ?? "")
-        .filter(Boolean)
-        .sort((a, b) => a.localeCompare(b))
+      // YM v2: groups are flat (no parent hierarchy).
+      const operationalGroupNames = Array.from(new Set(operationalMembershipNames)).sort((a, b) =>
+        a.localeCompare(b)
+      )
 
       if (!cancelled) {
-        setName(userRow.display_name ?? "")
-        setEmail(userRow.email ?? user.email ?? "")
+        setName(String(((user.user_metadata as any)?.display_name ?? "") as string))
+        setEmail(String(user.email ?? ""))
         setDescription(String(metaDescription ?? ""))
-        setGroups(operationalTreeNames)
+        setGroups(operationalGroupNames)
         setGlobalGroups(globalMembershipNames)
         setLoading(false)
       }
@@ -203,21 +141,9 @@ export default function ProfilePage() {
       return
     }
 
-    // Update public directory name (RLS: users_update_self).
-    const { error: updateErr } = await supabase
-      .from("users")
-      .update({ display_name: trimmedName || null })
-      .eq("id", user.id)
-
-    if (updateErr) {
-      setError(updateErr.message)
-      setSaving(false)
-      return
-    }
-
-    // Update auth metadata description (self-only).
+    // v2: no public.users table; persist profile fields in auth metadata.
     const { error: metaErr } = await supabase.auth.updateUser({
-      data: { profile_description: description || "" },
+      data: { display_name: trimmedName || "", profile_description: description || "" },
     })
 
     if (metaErr) {

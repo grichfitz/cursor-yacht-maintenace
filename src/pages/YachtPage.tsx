@@ -8,25 +8,16 @@ type YachtRow = {
   id: string
   name: string
   group_id: string
-  make_model: string | null
-  location: string | null
-  photo_url: string | null
-  latest_engineer_hours: number | null
+  archived_at: string | null
 }
 
 type TaskInstanceRow = {
   id: string
   yacht_id: string
-  status: "pending" | "assigned" | "completed" | "verified"
-  due_at: string | null
-  template_id: string
-  template_name: string
-}
-
-type TemplateRow = {
-  id: string
-  name: string
-  description: string | null
+  status: "open" | "pending_review" | "approved"
+  due_date: string | null
+  title: string
+  owner_user_id: string | null
 }
 
 type GroupMemberRow = {
@@ -40,7 +31,7 @@ type UserRow = {
 }
 
 type AssignmentRow = {
-  task_instance_id: string
+  task_id: string
   assigned_to: string
   assigned_at: string
 }
@@ -48,14 +39,12 @@ type AssignmentRow = {
 function StatusPill({ status }: { status: TaskInstanceRow["status"] | string | null | undefined }) {
   const cfg = useMemo(() => {
     switch (status) {
-      case "pending":
+      case "open":
         return { bg: "rgba(110,110,115,0.12)", fg: "rgba(60,60,67,0.95)", label: "Pending" }
-      case "assigned":
-        return { bg: "rgba(10,132,255,0.14)", fg: "rgba(10,132,255,0.95)", label: "Assigned" }
-      case "completed":
+      case "pending_review":
         return { bg: "rgba(52,199,89,0.14)", fg: "rgba(28,110,50,1)", label: "Completed" }
-      case "verified":
-        return { bg: "rgba(34,199,184,0.16)", fg: "rgba(10,140,130,1)", label: "Verified" }
+      case "approved":
+        return { bg: "rgba(34,199,184,0.16)", fg: "rgba(10,140,130,1)", label: "Approved" }
       default: {
         const raw = typeof status === "string" ? status : ""
         const pretty = raw ? raw.replace(/_/g, " ") : "Unknown"
@@ -96,13 +85,6 @@ export default function YachtPage() {
   const [instances, setInstances] = useState<TaskInstanceRow[]>([])
   const [assignments, setAssignments] = useState<Map<string, AssignmentRow>>(new Map())
 
-  // Admin-only: create instance
-  const [templates, setTemplates] = useState<TemplateRow[]>([])
-  const [newTemplateId, setNewTemplateId] = useState<string>("")
-  const [dueAt, setDueAt] = useState<string>("")
-  const [creating, setCreating] = useState(false)
-  const [showCreate, setShowCreate] = useState(false)
-
   // Manager/Admin: assignees limited to yacht's group members
   const [assignees, setAssignees] = useState<UserRow[]>([])
   const [assigningId, setAssigningId] = useState<string | null>(null)
@@ -113,116 +95,18 @@ export default function YachtPage() {
 
   const canAssign = role === "admin" || role === "manager"
   const canVerify = role === "admin" || role === "manager"
-  const canCreateInstances = role === "admin"
 
   const load = async () => {
     if (!yachtId) return
     setLoading(true)
     setError(null)
 
-    // If not admin, restrict yacht visibility to user's group memberships.
-    if (role !== "admin") {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) {
-        setYacht(null)
-        setInstances([])
-        setAssignments(new Map())
-        setLoading(false)
-        return
-      }
-
-      const { data: links, error: linkErr } = await supabase
-        .from("user_group_links")
-        .select("group_id")
-        .eq("user_id", user.id)
-
-      if (linkErr) {
-        setError(linkErr.message)
-        setYacht(null)
-        setInstances([])
-        setAssignments(new Map())
-        setLoading(false)
-        return
-      }
-
-      const groupIds = Array.from(
-        new Set(((links as any[]) ?? []).map((l) => l.group_id).filter(Boolean))
-      )
-
-      if (groupIds.length === 0) {
-        setYacht(null)
-        setInstances([])
-        setAssignments(new Map())
-        setLoading(false)
-        return
-      }
-
-      const { data: yachtRow, error: yErr } = await supabase
-        .from("yachts")
-        .select("id,name,group_id,make_model,location,photo_url,latest_engineer_hours")
-        .eq("id", yachtId)
-        .in("group_id", groupIds)
-        .maybeSingle()
-
-      if (yErr) {
-        setError(yErr.message)
-        setLoading(false)
-        return
-      }
-
-      if (!yachtRow) {
-        setYacht(null)
-        setInstances([])
-        setAssignments(new Map())
-        setLoading(false)
-        return
-      }
-
-      // Proceed with visible yachtRow.
-      const { data: taskRows, error: tErr } = await supabase
-        .from("task_instances")
-        .select("id,yacht_id,status,due_at,template_id,template_name")
-        .eq("yacht_id", yachtId)
-        .order("due_at", { ascending: true, nullsFirst: false })
-        .order("created_at", { ascending: false })
-
-      if (tErr) {
-        setError(tErr.message)
-        setYacht(yachtRow as YachtRow)
-        setInstances([])
-        setLoading(false)
-        return
-      }
-
-      const instanceIds = ((taskRows as TaskInstanceRow[]) ?? []).map((t) => t.id)
-      const assignmentMap = new Map<string, AssignmentRow>()
-
-      if (instanceIds.length > 0) {
-        const { data: aRows, error: aErr } = await supabase
-          .from("task_assignments")
-          .select("task_instance_id,assigned_to,assigned_at")
-          .in("task_instance_id", instanceIds)
-
-        if (!aErr) {
-          ;((aRows as AssignmentRow[]) ?? []).forEach((a) => assignmentMap.set(a.task_instance_id, a))
-        }
-      }
-
-      setYacht(yachtRow as YachtRow)
-      setInstances((taskRows as TaskInstanceRow[]) ?? [])
-      setAssignments(assignmentMap)
-      setLoading(false)
-      return
-    }
-
+    // YM v2 finalization: rely on RLS for data scoping (no frontend role-based filtering).
     const { data: yachtRow, error: yErr } = await supabase
       .from("yachts")
-      .select("id,name,group_id,make_model,location,photo_url,latest_engineer_hours")
+      .select("id,name,group_id,archived_at")
       .eq("id", yachtId)
-      .single()
+      .maybeSingle()
 
     if (yErr) {
       setError(yErr.message)
@@ -230,11 +114,19 @@ export default function YachtPage() {
       return
     }
 
+    if (!yachtRow) {
+      setYacht(null)
+      setInstances([])
+      setAssignments(new Map())
+      setLoading(false)
+      return
+    }
+
     const { data: taskRows, error: tErr } = await supabase
-      .from("task_instances")
-      .select("id,yacht_id,status,due_at,template_id,template_name")
+      .from("yacht_tasks")
+      .select("id,yacht_id,status,due_date,title,owner_user_id")
       .eq("yacht_id", yachtId)
-      .order("due_at", { ascending: true, nullsFirst: false })
+      .order("due_date", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: false })
 
     if (tErr) {
@@ -248,15 +140,13 @@ export default function YachtPage() {
     const instanceIds = ((taskRows as TaskInstanceRow[]) ?? []).map((t) => t.id)
     const assignmentMap = new Map<string, AssignmentRow>()
 
+    // v1 "assigned" status is now represented by owner_user_id on yacht_tasks.
     if (instanceIds.length > 0) {
-      const { data: aRows, error: aErr } = await supabase
-        .from("task_assignments")
-        .select("task_instance_id,assigned_to,assigned_at")
-        .in("task_instance_id", instanceIds)
-
-      if (!aErr) {
-        ;((aRows as AssignmentRow[]) ?? []).forEach((a) => assignmentMap.set(a.task_instance_id, a))
-      }
+      ;((taskRows as TaskInstanceRow[]) ?? []).forEach((t) => {
+        if (t.owner_user_id) {
+          assignmentMap.set(t.id, { task_id: t.id, assigned_to: t.owner_user_id, assigned_at: "" })
+        }
+      })
     }
 
     setYacht(yachtRow as YachtRow)
@@ -292,17 +182,6 @@ export default function YachtPage() {
     if (!session) return
     let cancelled = false
 
-    const loadTemplatesIfAdmin = async () => {
-      if (!canCreateInstances) return
-      const { data, error: tErr } = await supabase
-        .from("task_templates")
-        .select("id,name,description")
-        .order("name")
-      if (cancelled) return
-      if (tErr) return
-      setTemplates((data as TemplateRow[]) ?? [])
-    }
-
     const loadAssigneesIfManager = async () => {
       if (!yacht?.group_id) return
       if (!canAssign) return
@@ -321,61 +200,17 @@ export default function YachtPage() {
         return
       }
 
-      const { data: users, error: uErr } = await supabase
-        .from("users")
-        .select("id,display_name,email")
-        .in("id", ids)
-        .order("display_name")
-
+      // YM v2: no public.users directory table. Keep the assign dropdown functional using IDs only.
       if (cancelled) return
-      if (uErr) return
-      setAssignees((users as UserRow[]) ?? [])
+      setAssignees(ids.map((id) => ({ id, display_name: null, email: null })))
     }
 
-    loadTemplatesIfAdmin()
     loadAssigneesIfManager()
 
     return () => {
       cancelled = true
     }
-  }, [canAssign, canCreateInstances, yacht?.group_id, session])
-
-  const createInstance = async () => {
-    if (!yachtId) return
-    if (!newTemplateId) return
-
-    setCreating(true)
-    setError(null)
-
-    const tmpl = templates.find((t) => t.id === newTemplateId)
-    if (!tmpl) {
-      setError("Template not found.")
-      setCreating(false)
-      return
-    }
-
-    const due = dueAt ? new Date(dueAt).toISOString() : null
-
-    const { error: insErr } = await supabase.from("task_instances").insert({
-      template_id: tmpl.id,
-      yacht_id: yachtId,
-      status: "pending",
-      due_at: due,
-      template_name: tmpl.name,
-      template_description: tmpl.description,
-    })
-
-    if (insErr) {
-      setError(insErr.message)
-      setCreating(false)
-      return
-    }
-
-    setNewTemplateId("")
-    setDueAt("")
-    setCreating(false)
-    await load()
-  }
+  }, [canAssign, yacht?.group_id, session])
 
   const assign = async (taskInstanceId: string) => {
     if (!assignTo) return
@@ -392,21 +227,10 @@ export default function YachtPage() {
       return
     }
 
-    const { error: insErr } = await supabase.from("task_assignments").insert({
-      task_instance_id: taskInstanceId,
-      assigned_to: assignTo,
-      assigned_by: user.id,
-    })
-
-    if (insErr) {
-      setError(insErr.message)
-      setSavingAssign(false)
-      return
-    }
-
     const { error: upErr } = await supabase
-      .from("task_instances")
-      .update({ status: "assigned" })
+      .from("yacht_tasks")
+      // v1 "assigned" => v2 owner_user_id is set (status stays open)
+      .update({ status: "open", owner_user_id: assignTo })
       .eq("id", taskInstanceId)
 
     if (upErr) {
@@ -435,28 +259,10 @@ export default function YachtPage() {
       return
     }
 
-    // Insert assignment to self (unassigned tasks only; unique constraint will block if taken)
-    const { error: insErr } = await supabase.from("task_assignments").insert({
-      task_instance_id: taskInstanceId,
-      assigned_to: user.id,
-      assigned_by: user.id,
-    })
-
-    if (insErr) {
-      // If someone else already took it, just reload.
-      const msg = String(insErr.message || "")
-      const isUnique = insErr.code === "23505" || msg.toLowerCase().includes("duplicate") || msg.toLowerCase().includes("unique")
-      if (!isUnique) {
-        setError(insErr.message)
-        setTakingId(null)
-        return
-      }
-    }
-
-    // Mark instance assigned (RLS/trigger will enforce self-assignment)
     const { error: upErr } = await supabase
-      .from("task_instances")
-      .update({ status: "assigned" })
+      .from("yacht_tasks")
+      // v1 "assigned" => v2 owner_user_id is set (status stays open)
+      .update({ status: "open", owner_user_id: user.id })
       .eq("id", taskInstanceId)
 
     if (upErr) {
@@ -473,34 +279,12 @@ export default function YachtPage() {
     setSavingVerify(taskInstanceId)
     setError(null)
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      setError("Not signed in.")
-      setSavingVerify(null)
-      return
-    }
-
-    const { error: insErr } = await supabase.from("task_verifications").insert({
-      task_instance_id: taskInstanceId,
-      verified_by: user.id,
+    const { error: rpcErr } = await supabase.rpc("approve_yacht_task", {
+      p_task_id: taskInstanceId,
     })
 
-    if (insErr) {
-      setError(insErr.message)
-      setSavingVerify(null)
-      return
-    }
-
-    const { error: upErr } = await supabase
-      .from("task_instances")
-      .update({ status: "verified" })
-      .eq("id", taskInstanceId)
-
-    if (upErr) {
-      setError(upErr.message)
+    if (rpcErr) {
+      setError(rpcErr.message)
       setSavingVerify(null)
       return
     }
@@ -521,6 +305,11 @@ export default function YachtPage() {
       </div>
     )
   }
+
+  const yachtPhotoUrl: string | null = null
+  const yachtMakeModel: string | null = null
+  const yachtLocation: string | null = null
+  const yachtEngineerHours: number | null = null
 
   return (
     <div className="screen">
@@ -554,9 +343,9 @@ export default function YachtPage() {
 
       <div className="card" style={{ paddingBottom: 12 }}>
         <div style={{ fontWeight: 800, marginBottom: 8 }}>Yacht info</div>
-        {yacht.photo_url ? (
+        {yachtPhotoUrl ? (
           <img
-            src={yacht.photo_url}
+            src={yachtPhotoUrl}
             alt=""
             style={{
               width: "100%",
@@ -571,16 +360,16 @@ export default function YachtPage() {
         <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
           <div>
             <strong style={{ color: "var(--text-primary)" }}>Make / model:</strong>{" "}
-            {yacht.make_model || "—"}
+            {yachtMakeModel || "—"}
           </div>
           <div>
             <strong style={{ color: "var(--text-primary)" }}>Location:</strong>{" "}
-            {yacht.location || "—"}
+            {yachtLocation || "—"}
           </div>
-          {typeof yacht.latest_engineer_hours === "number" ? (
+          {typeof yachtEngineerHours === "number" ? (
             <div>
               <strong style={{ color: "var(--text-primary)" }}>Engineer hours:</strong>{" "}
-              {yacht.latest_engineer_hours}
+              {yachtEngineerHours}
             </div>
           ) : null}
         </div>
@@ -591,58 +380,6 @@ export default function YachtPage() {
           {error}
         </div>
       )}
-
-      {canCreateInstances ? (
-        <div className="card" style={{ paddingBottom: 14 }}>
-          <div style={{ fontWeight: 800, marginBottom: 8 }}>New task instance</div>
-          <button
-            type="button"
-            className="cta-button"
-            onClick={() => setShowCreate((v) => !v)}
-          >
-            {showCreate ? "Hide" : "Create new task instance"}
-          </button>
-        </div>
-      ) : null}
-
-      {canCreateInstances ? (
-        <div className="card" style={{ display: showCreate ? "block" : "none" }}>
-          <div style={{ fontWeight: 800, marginBottom: 10 }}>Create task instance</div>
-          <label>Task:</label>
-          <select
-            value={newTemplateId}
-            onChange={(e) => setNewTemplateId(e.target.value)}
-            style={{ marginBottom: 12 }}
-            disabled={creating}
-          >
-            <option value="">Select a task…</option>
-            {templates.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-
-          <label>Due at (optional):</label>
-          <input
-            type="datetime-local"
-            value={dueAt}
-            onChange={(e) => setDueAt(e.target.value)}
-            style={{ marginBottom: 12 }}
-            disabled={creating}
-          />
-
-          <button
-            type="button"
-            className="cta-button"
-            onClick={createInstance}
-            disabled={creating || !newTemplateId}
-            style={{ opacity: creating || !newTemplateId ? 0.6 : 1 }}
-          >
-            {creating ? "Creating…" : "Create instance"}
-          </button>
-        </div>
-      ) : null}
 
       <div className="card card-list">
         <div className="list-row" style={{ justifyContent: "space-between" }}>
@@ -657,9 +394,10 @@ export default function YachtPage() {
         ) : (
           instances.map((t) => {
             const a = assignments.get(t.id)
-            const showAssign = canAssign && t.status === "pending"
-            const showVerify = canVerify && t.status === "completed"
-            const showTake = role === "crew" && t.status === "pending"
+            const unownedOpen = t.status === "open" && !t.owner_user_id
+            const showAssign = canAssign && unownedOpen
+            const showVerify = canVerify && t.status === "pending_review"
+            const showTake = role === "crew" && unownedOpen
 
             return (
               <div key={t.id} style={{ borderTop: "1px solid rgba(0,0,0,0.06)" }}>
@@ -670,12 +408,12 @@ export default function YachtPage() {
                 >
                   <div className="list-button-main">
                     <div className="list-button-title" style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <span>{t.template_name}</span>
+                      <span>{t.title}</span>
                       <StatusPill status={t.status} />
                     </div>
                     <div className="list-button-subtitle">
-                      {t.due_at ? `Due ${new Date(t.due_at).toLocaleDateString()}` : "No due date"}
-                      {t.status === "assigned" || a ? ` · Assigned` : ""}
+                      {t.due_date ? `Due ${new Date(t.due_date).toLocaleDateString()}` : "No due date"}
+                      {t.owner_user_id || a ? ` · Assigned` : ""}
                     </div>
                   </div>
                   <div className="list-button-chevron">›</div>

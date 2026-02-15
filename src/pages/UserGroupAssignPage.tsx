@@ -63,22 +63,12 @@ export default function UserGroupAssignPage() {
       }
 
       // Load the target user's label for clarity (admin flows).
-      const { data: userRow } = await supabase
-        .from("users")
-        .select("display_name, email")
-        .eq("id", userId)
-        .maybeSingle()
-
       if (!cancelled) {
-        const label =
-          (userRow as any)?.display_name ||
-          (userRow as any)?.email ||
-          userId
-        setUserLabel(String(label))
+        setUserLabel(String(userId))
       }
 
       const { data: links, error: linkErr } = await supabase
-        .from("user_group_links")
+        .from("group_memberships")
         .select("group_id")
         .eq("user_id", userId)
 
@@ -194,9 +184,8 @@ export default function UserGroupAssignPage() {
             <GenericTreeAssignPage
               targetId={userId}
               nodes={nodes}
-              // Schema source of truth: user_group_links(user_id, group_id)
-              // Note: RLS blocks writes - this is admin/service only per RLS_DESIGN.md
-              mapTable="user_group_links"
+              // Schema source of truth: group_memberships(user_id, group_id)
+              mapTable="group_memberships"
               mapTargetField="user_id"
               mapNodeField="group_id"
               editBasePath="/groups"

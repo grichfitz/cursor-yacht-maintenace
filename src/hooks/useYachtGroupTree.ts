@@ -12,15 +12,14 @@ const UNASSIGNED_GROUP_ID = "__unassigned_yachts__"
 type GroupRow = {
   id: string
   name: string
-  parent_group_id: string | null
-  is_archived: boolean | null
+  archived_at: string | null
 }
 
 type YachtRow = {
   id: string
   name: string
-  make_model: string | null
-  location: string | null
+  group_id: string
+  archived_at: string | null
 }
 
 type YachtGroupLinkRow = {
@@ -87,7 +86,7 @@ export function useYachtGroupTree() {
 
       const { data: groups, error: groupError } = await supabase
         .from("groups")
-        .select("id, name, parent_group_id, is_archived")
+        .select("id, name, archived_at")
         .order("name")
 
       if (cancelled) return
@@ -116,7 +115,7 @@ export function useYachtGroupTree() {
 
       const { data: yachts, error: yachtError } = await supabase
         .from("yachts")
-        .select("id, name, make_model, location")
+        .select("id, name, group_id, archived_at")
         .order("name")
 
       if (cancelled) return
@@ -130,7 +129,7 @@ export function useYachtGroupTree() {
       /* ---------- 4. Build lookup sets ---------- */
 
       // Ignore archived groups in the yacht tree (archive is an admin concern).
-      const activeGroups = (groups as GroupRow[]).filter((g) => !g.is_archived)
+      const activeGroups = (groups as GroupRow[]).filter((g) => !g.archived_at)
       const activeGroupIds = new Set(activeGroups.map((g) => g.id))
 
       const activeLinks = (links as YachtGroupLinkRow[]).filter((l) =>
@@ -146,39 +145,18 @@ export function useYachtGroupTree() {
 
       /* ---------- 5. Only show groups that contain yachts ---------- */
 
-      const groupById = new Map<string, GroupRow>()
-      activeGroups.forEach((g) => groupById.set(g.id, g))
-
       const groupIdsWithYachts = new Set<string>(activeLinks.map((l) => l.group_id))
 
-      // Include ancestors so nested divisions still appear.
-      const relevantGroupIds = new Set<string>(groupIdsWithYachts)
-      for (const gid of groupIdsWithYachts) {
-        let current = groupById.get(gid)
-        while (current?.parent_group_id) {
-          relevantGroupIds.add(current.parent_group_id)
-          current = groupById.get(current.parent_group_id)
-        }
-      }
-
-      // For admins, show the full visible group tree even if empty (helps manage ownership).
-      const relevantGroups = isAdmin
-        ? activeGroups
-        : activeGroups.filter((g) => relevantGroupIds.has(g.id))
-      const relevantGroupIdSet = new Set(relevantGroups.map((g) => g.id))
+      // YM v2: groups are flat (no parent hierarchy).
+      const relevantGroups = isAdmin ? activeGroups : activeGroups.filter((g) => groupIdsWithYachts.has(g.id))
 
       /* ---------- 6. Group nodes ---------- */
 
       const groupNodes: TreeNode[] =
         relevantGroups.map((g) => {
-          // If the parent group isn't visible/relevant for this user,
-          // promote this group to a root node to avoid a blank tree.
-          const parentVisible =
-            !!g.parent_group_id && relevantGroupIdSet.has(g.parent_group_id)
-
           return {
             id: g.id,
-            parentId: parentVisible ? g.parent_group_id : null,
+            parentId: null,
             label: g.name,
             nodeType: "group",
             meta: g,

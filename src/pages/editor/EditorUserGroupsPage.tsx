@@ -24,23 +24,9 @@ export default function EditorUserGroupsPage() {
       setUserLoading(true)
       setUserError(null)
 
-      const { data, error } = await supabase
-        .from("users")
-        .select("email")
-        .eq("id", userId)
-        .maybeSingle()
-
       if (cancelled) return
 
-      if (error) {
-        setUserError(error.message)
-        setUserLabel(userId)
-        setUserLoading(false)
-        return
-      }
-
-      const email = (data as any)?.email as string | null | undefined
-      setUserLabel(email || userId)
+      setUserLabel(userId)
       setUserLoading(false)
     }
 
@@ -86,7 +72,7 @@ export default function EditorUserGroupsPage() {
           <GenericTreeAssignPage
             targetId={userId}
             nodes={nodes}
-            mapTable="user_group_links"
+            mapTable="group_memberships"
             mapTargetField="user_id"
             mapNodeField="group_id"
           />

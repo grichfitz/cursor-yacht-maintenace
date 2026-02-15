@@ -12,8 +12,7 @@ const UNASSIGNED_GROUP_ID = "__unassigned_users__"
 type GroupRow = {
   id: string
   name: string
-  parent_group_id: string | null
-  is_archived: boolean | null
+  archived_at: string | null
 }
 
 type UserRow = {
@@ -53,7 +52,7 @@ export function useUserGroupTree() {
 
       const { data: groups, error: groupError } = await supabase
         .from("groups")
-        .select("id, name, parent_group_id, is_archived")
+        .select("id, name, archived_at")
         .order("name")
 
       if (cancelled) return
@@ -67,7 +66,7 @@ export function useUserGroupTree() {
       /* ---------- 2. Load user-group links ---------- */
 
       const { data: links, error: linkError } = await supabase
-        .from("user_group_links")
+        .from("group_memberships")
         .select("user_id, group_id")
 
       if (cancelled) return
@@ -78,24 +77,9 @@ export function useUserGroupTree() {
         return
       }
 
-      /* ---------- 3. Load all users ---------- */
+      /* ---------- 3. Ignore archived groups in the user tree ---------- */
 
-      const { data: users, error: userError } = await supabase
-        .from("users")
-        .select("id, display_name, email")
-        .order("display_name")
-
-      if (cancelled) return
-
-      if (userError) {
-        setError(userError.message)
-        setLoading(false)
-        return
-      }
-
-      /* ---------- 4. Ignore archived groups in the user tree ---------- */
-
-      const activeGroups = (groups as GroupRow[]).filter((g) => !g.is_archived)
+      const activeGroups = (groups as GroupRow[]).filter((g) => !g.archived_at)
       const activeGroupIds = new Set(activeGroups.map((g) => g.id))
 
       const activeLinks = (links as UserGroupLinkRow[]).filter((l) =>
@@ -112,70 +96,20 @@ export function useUserGroupTree() {
         activeLinksUnique.push(l)
       }
 
-      /* ---------- 5. Build lookup maps ---------- */
-
-      const userMap = new Map<string, UserRow>()
-      ;(users as UserRow[]).forEach((u) => userMap.set(u.id, u))
-
-      const assignedUserIds = new Set(activeLinksUnique.map((l) => l.user_id))
-
-      /* ---------- 6. Group nodes ---------- */
+      /* ---------- 4. Group nodes ---------- */
 
       const groupNodes: TreeNode[] = activeGroups.map((g) => ({
         id: g.id,
-        parentId: g.parent_group_id,
+        parentId: null,
         label: g.name,
         nodeType: "group",
         meta: g,
       }))
 
-      /* ---------- 7. User nodes (assigned) ---------- */
+      /* ---------- 5. Combine ---------- */
 
-      const userNodes: TreeNode[] = activeLinksUnique
-        .map((l) => {
-          const u = userMap.get(l.user_id)
-          if (!u) return null
-
-          return {
-            id: u.id,
-            parentId: l.group_id,
-            label: u.display_name || u.email || "Unnamed user",
-            nodeType: "user",
-            meta: u,
-          } as TreeNode
-        })
-        .filter(Boolean) as TreeNode[]
-
-      /* ---------- 8. Unassigned users ---------- */
-
-      const unassignedUsers: TreeNode[] = (users as UserRow[])
-        .filter((u) => !assignedUserIds.has(u.id))
-        .map((u) => ({
-          id: u.id,
-          parentId: UNASSIGNED_GROUP_ID,
-          label: u.display_name || u.email || "Unnamed user",
-          nodeType: "user",
-          meta: u,
-        }))
-
-      // Always show an "Unassigned users" bucket so users never appear to "disappear".
-      const unassignedGroupNode: TreeNode = {
-        id: UNASSIGNED_GROUP_ID,
-        parentId: null,
-        label: `Unassigned users${unassignedUsers.length ? "" : " (0)"}`,
-        nodeType: "group",
-        meta: { isVirtual: true },
-      }
-
-      /* ---------- 9. Combine ---------- */
-
-      setNodes([
-        // Put Unassigned users first so they don't get "lost" at the bottom
-        unassignedGroupNode,
-        ...groupNodes,
-        ...userNodes,
-        ...unassignedUsers,
-      ])
+      // YM v2: no public.users directory table, so we only render group nodes here.
+      setNodes(groupNodes)
       setLoading(false)
       } finally {
         window.clearTimeout(timeoutId)

@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom"
 import { supabase } from "../lib/supabase"
 import { useFocusReload } from "../hooks/useFocusReload"
 import { useSession } from "../auth/SessionProvider"
-import { useMyRole } from "../hooks/useMyRole"
 import TreeDisplay, { type TreeNode } from "../components/TreeDisplay"
 import { Folder, Ship } from "lucide-react"
 import { pickBadgeVariant } from "../ui/badgeColors"
@@ -12,20 +11,17 @@ type YachtRow = {
   id: string
   name: string
   group_id: string
-  make_model: string | null
-  location: string | null
+  archived_at: string | null
 }
 
 type GroupRow = {
   id: string
   name: string
-  parent_group_id: string | null
 }
 
 export default function YachtsPage() {
   const navigate = useNavigate()
   const { session } = useSession()
-  const { role } = useMyRole()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [yachts, setYachts] = useState<YachtRow[]>([])
@@ -55,65 +51,17 @@ export default function YachtsPage() {
       const loadGroups = async () => {
         const { data: g, error: gErr } = await supabase
           .from("groups")
-          .select("id,name,parent_group_id")
+          .select("id,name")
           .order("name")
         if (gErr) throw gErr
         return (g as GroupRow[]) ?? []
       }
 
-      // Admin can see all yachts; everyone else is restricted to their group memberships.
-      if (role !== "admin") {
-        const { data: links, error: linkErr } = await supabase
-          .from("user_group_links")
-          .select("group_id")
-          .eq("user_id", user.id)
-
-        if (linkErr) {
-          setError(linkErr.message)
-          setYachts([])
-          setGroups([])
-          setLoading(false)
-          return
-        }
-
-        const groupIds = Array.from(
-          new Set(((links as any[]) ?? []).map((l) => l.group_id).filter(Boolean))
-        )
-
-        if (groupIds.length === 0) {
-          setYachts([])
-          setGroups([])
-          setLoading(false)
-          return
-        }
-
-        const [{ data, error: loadErr }, groupsList] = await Promise.all([
-          supabase
-            .from("yachts")
-            .select("id,name,group_id,make_model,location")
-            .in("group_id", groupIds)
-            .order("name"),
-          loadGroups(),
-        ])
-
-        if (loadErr) {
-          setError(loadErr.message)
-          setYachts([])
-          setGroups([])
-          setLoading(false)
-          return
-        }
-
-        setYachts((data as YachtRow[]) ?? [])
-        setGroups(groupsList)
-        setLoading(false)
-        return
-      }
-
+      // YM v2 finalization: rely on RLS for data scoping (no frontend role-based filtering).
       const [{ data, error: loadErr }, groupsList] = await Promise.all([
         supabase
           .from("yachts")
-          .select("id,name,group_id,make_model,location")
+          .select("id,name,group_id,archived_at")
           .order("name"),
         loadGroups(),
       ])
@@ -132,7 +80,7 @@ export default function YachtsPage() {
     } finally {
       window.clearTimeout(timeoutId)
     }
-  }, [role])
+  }, [])
 
   useEffect(() => {
     if (!session) return
@@ -171,19 +119,8 @@ export default function YachtsPage() {
       if (groupById.has(y.group_id)) groupIdsWithYachts.add(y.group_id)
     }
 
-    // Include ancestors so subgroup yachts show under the full path.
-    const relevantGroupIds = new Set<string>(groupIdsWithYachts)
-    for (const gid of groupIdsWithYachts) {
-      let cur = groupById.get(gid) ?? null
-      let guard = 0
-      while (cur?.parent_group_id && guard < 20) {
-        relevantGroupIds.add(cur.parent_group_id)
-        cur = groupById.get(cur.parent_group_id) ?? null
-        guard++
-      }
-    }
-
-    const relevantGroups = groups.filter((g) => relevantGroupIds.has(g.id))
+    // YM v2: groups are flat (no parent hierarchy).
+    const relevantGroups = groups.filter((g) => groupIdsWithYachts.has(g.id))
     const relevantGroupIdSet = new Set(relevantGroups.map((g) => g.id))
 
     const yachtCountByGroupId = new Map<string, number>()
@@ -194,10 +131,9 @@ export default function YachtsPage() {
 
     // Build group nodes
     const groupNodes: TreeNode[] = relevantGroups.map((g) => {
-      const parentVisible = !!g.parent_group_id && relevantGroupIdSet.has(g.parent_group_id)
       return {
         id: g.id,
-        parentId: parentVisible ? g.parent_group_id : null,
+        parentId: null,
         label: g.name,
         nodeType: "group",
         meta: g,

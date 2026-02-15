@@ -29,19 +29,14 @@ export function useMyRole() {
         return
       }
 
-      const { data, error } = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", user.id)
-        .single()
-
+      const { data, error } = await supabase.rpc("current_user_role")
       if (error) {
         setRole("crew")
         setLoading(false)
         return
       }
 
-      const r = (data as any)?.role
+      const r = data
       if (r === "admin" || r === "manager" || r === "crew") setRole(r)
       else setRole("crew")
       setLoading(false)

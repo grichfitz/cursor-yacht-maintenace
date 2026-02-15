@@ -34,7 +34,7 @@ export default function GenericTreeAssignPage({
   const useRadioButtons = mapTable === "yacht_group_links" && mapTargetField === "yacht_id"
   
   // Check if this is user-group assignment (admin/service only per RLS_DESIGN.md)
-  const isUserGroupAssignment = mapTable === "user_group_links"
+  const isUserGroupAssignment = mapTable === "group_memberships"
 
   // Check if current user is admin
   useEffect(() => {

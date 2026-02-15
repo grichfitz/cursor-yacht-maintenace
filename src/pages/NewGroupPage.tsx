@@ -35,8 +35,6 @@ export default function NewGroupPage() {
       return
     }
 
-    const parentToSave = selectedParentId === ROOT_ID ? null : selectedParentId
-
     setSaving(true)
 
     const { data, error: insertError } = await supabase
@@ -44,7 +42,6 @@ export default function NewGroupPage() {
       .insert({
         name: trimmed,
         description: description.trim() ? description.trim() : null,
-        parent_group_id: parentToSave,
       })
       .select("id")
       .single()

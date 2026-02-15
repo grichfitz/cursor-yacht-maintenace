@@ -8,22 +8,18 @@ import { useSession } from "../auth/SessionProvider"
 type TaskInstanceRow = {
   id: string
   yacht_id: string
-  status: "pending" | "assigned" | "completed" | "verified"
-  due_at: string | null
-  template_name: string
-  template_description: string | null
+  status: "open" | "pending_review" | "approved"
+  due_date: string | null
+  title: string
+  description: string | null
+  owner_user_id: string | null
 }
 
 type YachtRow = {
   id: string
   name: string
-  make_model: string | null
-  location: string | null
-}
-
-type AssignmentRow = {
-  task_instance_id: string
-  assigned_to: string
+  group_id: string
+  archived_at: string | null
 }
 
 export default function TaskInstancePage() {
@@ -42,11 +38,13 @@ export default function TaskInstancePage() {
   const [saving, setSaving] = useState(false)
 
   const canComplete = useMemo(() => {
-    return role === "crew" && assignedToMe && row?.status === "assigned"
+    // v1 "assigned" => v2 status=open AND owner_user_id = me
+    return role === "crew" && assignedToMe && row?.status === "open"
   }, [role, assignedToMe, row?.status])
 
   const canVerify = useMemo(() => {
-    return (role === "admin" || role === "manager") && row?.status === "completed"
+    // v1 "completed" => v2 pending_review
+    return (role === "admin" || role === "manager") && row?.status === "pending_review"
   }, [role, row?.status])
 
   const load = useCallback(async () => {
@@ -66,8 +64,8 @@ export default function TaskInstancePage() {
     }
 
     const { data, error: loadErr } = await supabase
-      .from("task_instances")
-      .select("id,yacht_id,status,due_at,template_name,template_description")
+      .from("yacht_tasks")
+      .select("id,yacht_id,status,due_date,title,description,owner_user_id")
       .eq("id", taskInstanceId)
       .single()
 
@@ -82,7 +80,7 @@ export default function TaskInstancePage() {
     // Load the yacht for context (name/make/location).
     const { data: yRow, error: yErr } = await supabase
       .from("yachts")
-      .select("id,name,make_model,location")
+      .select("id,name,group_id,archived_at")
       .eq("id", (data as TaskInstanceRow).yacht_id)
       .maybeSingle()
 
@@ -92,26 +90,8 @@ export default function TaskInstancePage() {
       setYacht(null)
     }
 
-    const { data: assignmentRows, error: aErr } = await supabase
-      .from("task_assignments")
-      .select("task_instance_id,assigned_to")
-      .eq("task_instance_id", taskInstanceId)
-      .limit(1)
-
-    if (aErr) {
-      setError(aErr.message)
-      setRow(data as TaskInstanceRow)
-      // Keep yacht context if it loaded.
-      setAssignedToMe(false)
-      setLoading(false)
-      return
-    }
-
-    const assignedTo =
-      ((assignmentRows as AssignmentRow[] | null) ?? [])[0]?.assigned_to ?? null
-
     setRow(data as TaskInstanceRow)
-    setAssignedToMe(assignedTo === user.id)
+    setAssignedToMe(((data as TaskInstanceRow)?.owner_user_id ?? null) === user.id)
     setLoading(false)
   }, [taskInstanceId])
 
@@ -147,35 +127,12 @@ export default function TaskInstancePage() {
     setSaving(true)
     setError(null)
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      setError("Not signed in.")
-      setSaving(false)
-      return
-    }
-
-    const { error: insErr } = await supabase.from("task_completions").insert({
-      task_instance_id: taskInstanceId,
-      user_id: user.id,
-      notes: notes.trim() ? notes.trim() : null,
+    const { error: rpcErr } = await supabase.rpc("complete_yacht_task", {
+      p_task_id: taskInstanceId,
     })
 
-    if (insErr) {
-      setError(insErr.message)
-      setSaving(false)
-      return
-    }
-
-    const { error: upErr } = await supabase
-      .from("task_instances")
-      .update({ status: "completed" })
-      .eq("id", taskInstanceId)
-
-    if (upErr) {
-      setError(upErr.message)
+    if (rpcErr) {
+      setError(rpcErr.message)
       setSaving(false)
       return
     }
@@ -190,34 +147,12 @@ export default function TaskInstancePage() {
     setSaving(true)
     setError(null)
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      setError("Not signed in.")
-      setSaving(false)
-      return
-    }
-
-    const { error: insErr } = await supabase.from("task_verifications").insert({
-      task_instance_id: taskInstanceId,
-      verified_by: user.id,
+    const { error: rpcErr } = await supabase.rpc("approve_yacht_task", {
+      p_task_id: taskInstanceId,
     })
 
-    if (insErr) {
-      setError(insErr.message)
-      setSaving(false)
-      return
-    }
-
-    const { error: upErr } = await supabase
-      .from("task_instances")
-      .update({ status: "verified" })
-      .eq("id", taskInstanceId)
-
-    if (upErr) {
-      setError(upErr.message)
+    if (rpcErr) {
+      setError(rpcErr.message)
       setSaving(false)
       return
     }
@@ -256,12 +191,12 @@ export default function TaskInstancePage() {
       ) : (
         <>
           <div className="screen-title" style={{ marginBottom: 8 }}>
-            {row.template_name}
+            {row.title}
           </div>
 
-          {row.template_description ? (
+          {row.description ? (
             <div className="screen-subtitle" style={{ marginBottom: 10 }}>
-              {row.template_description}
+              {row.description}
             </div>
           ) : null}
 
@@ -276,7 +211,7 @@ export default function TaskInstancePage() {
                 <div className="list-button-main">
                   <div className="list-button-title">{yacht.name}</div>
                   <div className="list-button-subtitle">
-                    {[yacht.make_model || null, yacht.location || null].filter(Boolean).join(" · ") || "—"}
+                    {"—"}
                   </div>
                 </div>
                 <div className="list-button-chevron">›</div>
@@ -295,7 +230,7 @@ export default function TaskInstancePage() {
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontWeight: 700, marginBottom: 4 }}>Due</div>
                 <div style={{ fontSize: 13, opacity: 0.9 }}>
-                  {row.due_at ? new Date(row.due_at).toLocaleString() : "—"}
+                  {row.due_date ? new Date(row.due_date).toLocaleString() : "—"}
                 </div>
               </div>
             </div>

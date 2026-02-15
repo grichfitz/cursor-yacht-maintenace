@@ -9,25 +9,21 @@ import YachtsPage from "../pages/YachtsPage"
 import YachtPage from "../pages/YachtPage"
 import ReportsPage from "../pages/ReportsPage"
 import ProfilePage from "../pages/ProfilePage"
-import AssignmentsPage from "../pages/AssignmentsPage"
-import TemplateListPage from "../pages/TemplateListPage"
-import TemplateEditorPage from "../pages/TemplateEditorPage"
 import UsersPage from "../pages/UsersPage"
+import AdminTemplatesPage from "../pages/AdminTemplatesPage"
+import GroupTemplatesPage from "../pages/GroupTemplatesPage"
 
 import EditorYachtsPage from "../pages/editor/EditorYachtsPage"
 import EditorGroupsPage from "../pages/editor/EditorGroupsPage"
 import EditorCategoriesPage from "../pages/editor/EditorCategoriesPage"
-import EditorTaskTemplatesPage from "../pages/editor/EditorTaskTemplatesPage"
 import EditorUserGroupsPage from "../pages/editor/EditorUserGroupsPage"
 import EditorUserPage from "../pages/editor/EditorUserPage"
 import EditorNewYachtPage from "../pages/editor/EditorNewYachtPage"
 import EditorNewGroupPage from "../pages/editor/EditorNewGroupPage"
 import EditorNewCategoryPage from "../pages/editor/EditorNewCategoryPage"
-import EditorNewTaskTemplatePage from "../pages/editor/EditorNewTaskTemplatePage"
 import EditorEditYachtPage from "../pages/editor/EditorEditYachtPage"
 import EditorEditGroupPage from "../pages/editor/EditorEditGroupPage"
 import EditorEditCategoryPage from "../pages/editor/EditorEditCategoryPage"
-import EditorEditTaskTemplatePage from "../pages/editor/EditorEditTaskTemplatePage"
 import NewUserPage from "../pages/NewUserPage"
 
 function EditorRoute({ children }: { children: React.ReactNode }) {
@@ -56,7 +52,7 @@ export default function AppRoutes() {
       <Route path="/apps/reports" element={<Navigate to="/reports" replace />} />
       <Route path="/apps/groups" element={<Navigate to="/editor/groups" replace />} />
       <Route path="/apps/categories" element={<Navigate to="/editor/categories" replace />} />
-      <Route path="/assigments" element={<Navigate to="/assignments" replace />} />
+      <Route path="/assigments" element={<Navigate to="/dashboard" replace />} />
 
       <Route path="/tasks" element={<TasksPage />} />
       <Route path="/tasks/:taskInstanceId" element={<TaskInstancePage />} />
@@ -69,30 +65,27 @@ export default function AppRoutes() {
       <Route path="/profile" element={<ProfilePage />} />
 
       <Route
-        path="/templates"
+        path="/admin/templates"
         element={
           <EditorRoute>
-            <TemplateListPage />
-          </EditorRoute>
-        }
-      />
-      <Route
-        path="/templates/:id"
-        element={
-          <EditorRoute>
-            <TemplateEditorPage />
+            <AdminTemplatesPage />
           </EditorRoute>
         }
       />
 
       <Route
-        path="/assignments"
+        path="/groups/:groupId/templates"
         element={
-          <EditorRoute>
-            <AssignmentsPage />
-          </EditorRoute>
+          <RequireRole allow={["admin", "manager"]}>
+            <GroupTemplatesPage />
+          </RequireRole>
         }
       />
+
+      {/* Legacy template/assignment subsystem removed (YM v2) */}
+      <Route path="/templates" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/templates/:id" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/assignments" element={<Navigate to="/dashboard" replace />} />
 
       <Route
         path="/users"
@@ -201,30 +194,9 @@ export default function AppRoutes() {
           </EditorRoute>
         }
       />
-      <Route
-        path="/editor/task-templates/new"
-        element={
-          <EditorRoute>
-            <EditorNewTaskTemplatePage />
-          </EditorRoute>
-        }
-      />
-      <Route
-        path="/editor/task-templates/:templateId"
-        element={
-          <EditorRoute>
-            <EditorEditTaskTemplatePage />
-          </EditorRoute>
-        }
-      />
-      <Route
-        path="/editor/task-templates"
-        element={
-          <EditorRoute>
-            <EditorTaskTemplatesPage />
-          </EditorRoute>
-        }
-      />
+      <Route path="/editor/task-templates" element={<Navigate to="/editor/yachts" replace />} />
+      <Route path="/editor/task-templates/new" element={<Navigate to="/editor/yachts" replace />} />
+      <Route path="/editor/task-templates/:templateId" element={<Navigate to="/editor/yachts" replace />} />
 
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

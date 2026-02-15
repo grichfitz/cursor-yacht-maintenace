@@ -4,7 +4,7 @@ import { supabase } from "../../lib/supabase"
 import { useSession } from "../../auth/SessionProvider"
 import EditorNav from "./EditorNav"
 
-type GroupRow = { id: string; name: string; parent_group_id: string | null; description?: string | null }
+type GroupRow = { id: string; name: string; description?: string | null }
 type UserRow = { id: string; display_name: string | null; email: string | null; role?: string | null }
 type GroupMemberRow = { id: string; user_id: string; group_id: string }
 
@@ -29,78 +29,10 @@ export default function EditorEditGroupPage() {
   const [membersLoading, setMembersLoading] = useState(false)
   const [addUserId, setAddUserId] = useState("")
 
-  const groupById = useMemo(() => {
-    const m = new Map<string, GroupRow>()
-    groups.forEach((g) => m.set(g.id, g))
-    return m
-  }, [groups])
-
-  const childrenMap = useMemo(() => {
-    const m = new Map<string | null, GroupRow[]>()
-    for (const g of groups) {
-      const key = g.parent_group_id && groupById.has(g.parent_group_id) ? g.parent_group_id : null
-      const arr = m.get(key) ?? []
-      arr.push(g)
-      m.set(key, arr)
-    }
-    for (const [k, arr] of m.entries()) {
-      arr.sort((a, b) => a.name.localeCompare(b.name))
-      m.set(k, arr)
-    }
-    return m
-  }, [groups, groupById])
-
-  const orderedGroups = useMemo(() => {
-    const out: Array<{ g: GroupRow; depth: number }> = []
-    const visited = new Set<string>()
-
-    const walk = (parentId: string | null, depth: number) => {
-      const kids = childrenMap.get(parentId) ?? []
-      for (const g of kids) {
-        if (visited.has(g.id)) continue
-        visited.add(g.id)
-        out.push({ g, depth })
-        walk(g.id, depth + 1)
-      }
-    }
-
-    walk(null, 0)
-
-    for (const g of groups) {
-      if (!visited.has(g.id)) out.push({ g, depth: 0 })
-    }
-
-    return out
-  }, [childrenMap, groups])
-
-  const descendantIdsOfEditing = useMemo(() => {
-    if (!groupId) return new Set<string>()
-    const ids = new Set<string>()
-    const stack = [groupId]
-    while (stack.length) {
-      const current = stack.pop()!
-      const kids = childrenMap.get(current) ?? []
-      for (const k of kids) {
-        if (ids.has(k.id)) continue
-        ids.add(k.id)
-        stack.push(k.id)
-      }
-    }
-    return ids
-  }, [groupId, childrenMap])
-
-  const formatTreeLabel = (g: GroupRow) => {
-    const parts: string[] = [g.name]
-    let cur = g
-    let guard = 0
-    while (cur.parent_group_id && groupById.has(cur.parent_group_id) && guard < 10) {
-      const p = groupById.get(cur.parent_group_id)!
-      parts.unshift(p.name)
-      cur = p
-      guard++
-    }
-    return parts.join(" › ")
-  }
+  // YM v2: groups are flat (no parent hierarchy).
+  const orderedGroups = useMemo(() => [...groups].sort((a, b) => a.name.localeCompare(b.name)), [groups])
+  const descendantIdsOfEditing = useMemo(() => new Set<string>(), [])
+  const formatTreeLabel = (g: GroupRow) => g.name
 
   const loadMembers = async (gid: string, directory: UserRow[]) => {
     setMembersLoading(true)
@@ -140,10 +72,9 @@ export default function EditorEditGroupPage() {
       setLoading(true)
       setError(null)
 
-      const [{ data: g, error: gErr }, { data: u, error: uErr }, { data: row, error: rowErr }] = await Promise.all([
-        supabase.from("groups").select("id,name,parent_group_id,description").order("name"),
-        supabase.from("users").select("id,display_name,email,role").order("display_name"),
-        supabase.from("groups").select("id,name,parent_group_id,description").eq("id", groupId).maybeSingle(),
+      const [{ data: g, error: gErr }, { data: row, error: rowErr }] = await Promise.all([
+        supabase.from("groups").select("id,name,description").order("name"),
+        supabase.from("groups").select("id,name,description").eq("id", groupId).maybeSingle(),
       ])
 
       if (cancelled) return
@@ -152,14 +83,14 @@ export default function EditorEditGroupPage() {
       if (firstErr) {
         setError(firstErr.message)
         setGroups((g as GroupRow[]) ?? [])
-        setUsers((uErr ? [] : ((u as UserRow[]) ?? [])) as UserRow[])
+        setUsers([])
         setLoading(false)
         return
       }
 
-      const directory = (uErr ? [] : ((u as UserRow[]) ?? [])) as UserRow[]
+      const directory: UserRow[] = []
       setGroups((g as GroupRow[]) ?? [])
-      setUsers(directory)
+      setUsers([])
 
       const grp = row as GroupRow | null
       if (!grp?.id) {
@@ -170,7 +101,7 @@ export default function EditorEditGroupPage() {
 
       setName(grp.name ?? "")
       setDescription((grp.description ?? "") as string)
-      setParentId(grp.parent_group_id ?? "")
+      setParentId("")
       setAddUserId("")
 
       await loadMembers(groupId, directory)
@@ -199,7 +130,6 @@ export default function EditorEditGroupPage() {
       .update({
         name: trimmed,
         description: description.trim() ? description.trim() : null,
-        parent_group_id: parentId || null,
       })
       .eq("id", groupId)
     setSaving(false)

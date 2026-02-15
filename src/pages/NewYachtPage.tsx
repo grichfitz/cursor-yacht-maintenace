@@ -26,8 +26,6 @@ export default function NewYachtPage() {
       .from("yachts")
       .insert({
         name: trimmed,
-        make_model: makeModel.trim() ? makeModel.trim() : null,
-        location: location.trim() ? location.trim() : null,
       })
       .select("id")
       .single()

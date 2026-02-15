@@ -8,8 +8,7 @@ const ARCHIVE_ID = "__archive__"
 type GroupRow = {
   id: string
   name: string
-  parent_group_id: string | null
-  is_archived: boolean | null
+  archived_at: string | null
 }
 
 export function useGroupTree() {
@@ -45,7 +44,7 @@ export function useGroupTree() {
 
       const { data, error } = await supabase
         .from("groups")
-        .select("id, name, parent_group_id, is_archived")
+        .select("id, name, archived_at")
         .order("name")
 
       if (cancelled) return
@@ -62,13 +61,13 @@ export function useGroupTree() {
       for (const g of data as GroupRow[]) {
         const node: TreeNode = {
           id: g.id,
-          parentId: g.parent_group_id,
+          parentId: null,
           label: g.name,
           nodeType: "group",
           meta: g,
         }
 
-        if (g.is_archived) archived.push(node)
+        if (g.archived_at) archived.push(node)
         else active.push(node)
       }
 

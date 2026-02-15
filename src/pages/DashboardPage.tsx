@@ -5,25 +5,28 @@ import { supabase } from "../lib/supabase"
 import { useMyRole } from "../hooks/useMyRole"
 import { useSession } from "../auth/SessionProvider"
 
-type TaskInstanceRow = {
+type YachtTaskRow = {
   id: string
   yacht_id: string
-  status: "pending" | "assigned" | "completed" | "verified"
-  due_at: string | null
-  template_name: string
+  status: "open" | "pending_review" | "approved"
+  due_date: string | null
+  title: string
+  owner_user_id?: string | null
 }
 
-function StatusPill({ status }: { status: TaskInstanceRow["status"] }) {
+type DashboardCountKey = "open" | "pending_review" | "approved" | "assigned_to_me"
+
+function StatusPill({ status }: { status: DashboardCountKey }) {
   const cfg = useMemo(() => {
     switch (status) {
-      case "pending":
-        return { bg: "rgba(110,110,115,0.12)", fg: "rgba(60,60,67,0.95)", label: "Pending" }
-      case "assigned":
-        return { bg: "rgba(10,132,255,0.14)", fg: "rgba(10,132,255,0.95)", label: "Assigned" }
-      case "completed":
-        return { bg: "rgba(52,199,89,0.14)", fg: "rgba(28,110,50,1)", label: "Completed" }
-      case "verified":
-        return { bg: "rgba(34,199,184,0.16)", fg: "rgba(10,140,130,1)", label: "Verified" }
+      case "open":
+        return { bg: "rgba(110,110,115,0.12)", fg: "rgba(60,60,67,0.95)", label: "Open" }
+      case "assigned_to_me":
+        return { bg: "rgba(10,132,255,0.14)", fg: "rgba(10,132,255,0.95)", label: "Assigned to me" }
+      case "pending_review":
+        return { bg: "rgba(52,199,89,0.14)", fg: "rgba(28,110,50,1)", label: "Pending review" }
+      case "approved":
+        return { bg: "rgba(34,199,184,0.16)", fg: "rgba(10,140,130,1)", label: "Approved" }
     }
   }, [status])
 
@@ -52,25 +55,35 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [counts, setCounts] = useState<Record<string, number>>({
-    pending: 0,
-    assigned: 0,
-    completed: 0,
-    verified: 0,
+  const [counts, setCounts] = useState<Record<DashboardCountKey, number>>({
+    open: 0,
+    assigned_to_me: 0,
+    pending_review: 0,
+    approved: 0,
   })
 
-  const [assigned, setAssigned] = useState<TaskInstanceRow[]>([])
-  const [overdue, setOverdue] = useState<TaskInstanceRow[]>([])
+  const [assigned, setAssigned] = useState<YachtTaskRow[]>([])
+  const [overdue, setOverdue] = useState<YachtTaskRow[]>([])
 
   useEffect(() => {
     if (!session) return
     let cancelled = false
 
-    const countStatus = async (status: TaskInstanceRow["status"]) => {
+    const countStatus = async (status: YachtTaskRow["status"]) => {
+      let q = supabase.from("yacht_tasks").select("id", { count: "exact", head: true })
+      q = q.eq("status", status)
+
+      const { count, error: cErr } = await q
+      if (cErr) throw cErr
+      return count ?? 0
+    }
+
+    const countAssignedToMe = async () => {
       const { count, error: cErr } = await supabase
-        .from("task_instances")
+        .from("yacht_tasks")
         .select("id", { count: "exact", head: true })
-        .eq("status", status)
+        .eq("status", "open")
+        .eq("owner_user_id", session.user.id)
       if (cErr) throw cErr
       return count ?? 0
     }
@@ -84,38 +97,44 @@ export default function DashboardPage() {
       }, 1500)
 
       try {
-        const [pending, assignedC, completed, verified] = await Promise.all([
-          countStatus("pending"),
-          countStatus("assigned"),
-          countStatus("completed"),
-          countStatus("verified"),
+        const [openC, assignedToMeC, pendingReviewC, approvedC] = await Promise.all([
+          countStatus("open"),
+          countAssignedToMe(),
+          countStatus("pending_review"),
+          countStatus("approved"),
         ])
 
         const nowIso = new Date().toISOString()
 
         const { data: assignedRows, error: aErr } = await supabase
-          .from("task_instances")
-          .select("id,yacht_id,status,due_at,template_name")
-          .eq("status", "assigned")
-          .order("due_at", { ascending: true, nullsFirst: false })
+          .from("yacht_tasks")
+          .select("id,yacht_id,status,due_date,title")
+          .eq("status", "open")
+          .eq("owner_user_id", session.user.id)
+          .order("due_date", { ascending: true, nullsFirst: false })
           .limit(8)
 
         if (aErr) throw aErr
 
         const { data: overdueRows, error: oErr } = await supabase
-          .from("task_instances")
-          .select("id,yacht_id,status,due_at,template_name")
-          .lt("due_at", nowIso)
-          .neq("status", "verified")
-          .order("due_at", { ascending: true })
+          .from("yacht_tasks")
+          .select("id,yacht_id,status,due_date,title")
+          .lt("due_date", nowIso)
+          .neq("status", "approved")
+          .order("due_date", { ascending: true })
           .limit(8)
 
         if (oErr) throw oErr
 
         if (!cancelled) {
-          setCounts({ pending, assigned: assignedC, completed, verified })
-          setAssigned((assignedRows as TaskInstanceRow[]) ?? [])
-          setOverdue((overdueRows as TaskInstanceRow[]) ?? [])
+          setCounts({
+            open: openC,
+            assigned_to_me: assignedToMeC,
+            pending_review: pendingReviewC,
+            approved: approvedC,
+          })
+          setAssigned((assignedRows as YachtTaskRow[]) ?? [])
+          setOverdue((overdueRows as YachtTaskRow[]) ?? [])
           setLoading(false)
         }
       } catch (e: any) {
@@ -203,7 +222,7 @@ export default function DashboardPage() {
       <div className="card">
         <div style={{ fontWeight: 700, marginBottom: 10 }}>Task counts</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          {(["pending", "assigned", "completed", "verified"] as const).map((s) => (
+          {(["open", "assigned_to_me", "pending_review", "approved"] as const).map((s) => (
             <div
               key={s}
               style={{
@@ -241,9 +260,9 @@ export default function DashboardPage() {
               onClick={() => navigate(`/tasks/${t.id}`)}
             >
               <div className="list-button-main">
-                <div className="list-button-title">{t.template_name}</div>
+                <div className="list-button-title">{t.title}</div>
                 <div className="list-button-subtitle">
-                  {t.due_at ? `Due ${new Date(t.due_at).toLocaleDateString()}` : "No due date"}
+                  {t.due_date ? `Due ${new Date(t.due_date).toLocaleDateString()}` : "No due date"}
                 </div>
               </div>
               <div className="list-button-chevron">›</div>
@@ -271,9 +290,9 @@ export default function DashboardPage() {
               onClick={() => navigate(`/tasks/${t.id}`)}
             >
               <div className="list-button-main">
-                <div className="list-button-title">{t.template_name}</div>
+                <div className="list-button-title">{t.title}</div>
                 <div className="list-button-subtitle">
-                  {t.due_at ? `Due ${new Date(t.due_at).toLocaleDateString()}` : "No due date"}
+                  {t.due_date ? `Due ${new Date(t.due_date).toLocaleDateString()}` : "No due date"}
                 </div>
               </div>
               <div className="list-button-chevron">›</div>

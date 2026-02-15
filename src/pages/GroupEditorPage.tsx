@@ -11,7 +11,6 @@ type GroupRow = {
   id: string
   name: string
   description: string | null
-  parent_group_id: string | null
   is_archived: boolean | null
 }
 
@@ -72,7 +71,7 @@ export default function GroupEditorPage() {
 
       const { data, error: loadErr } = await supabase
         .from("groups")
-        .select("id,name,description,parent_group_id,is_archived")
+        .select("id,name,description,is_archived")
         .eq("id", groupId)
         .single()
 
@@ -93,7 +92,7 @@ export default function GroupEditorPage() {
 
       setName(row.name)
       setDescription(row.description ?? "")
-      setSelectedParentId(row.parent_group_id ?? ROOT_ID)
+      setSelectedParentId(ROOT_ID)
       setIsArchived(!!row.is_archived)
       setLoading(false)
     }
@@ -161,11 +160,6 @@ export default function GroupEditorPage() {
       return
     }
 
-    const parentToSave =
-      selectedParentId === ROOT_ID || (selectedParentId?.startsWith("__") ?? false)
-        ? null
-        : selectedParentId
-
     setSaving(true)
 
     // IMPORTANT:
@@ -176,10 +170,9 @@ export default function GroupEditorPage() {
       .update({
         name: name.trim(),
         description: description || null,
-        parent_group_id: parentToSave,
       })
       .eq("id", groupId)
-      .select("id,name,description,parent_group_id,is_archived")
+      .select("id,name,description,is_archived")
       .maybeSingle()
 
     if (updateErr) {
@@ -211,9 +204,9 @@ export default function GroupEditorPage() {
 
     const { data: updated, error: updateErr } = await supabase
       .from("groups")
-      .update({ is_archived: false, parent_group_id: null })
+      .update({ is_archived: false })
       .eq("id", groupId)
-      .select("id,name,description,parent_group_id,is_archived")
+      .select("id,name,description,is_archived")
       .maybeSingle()
 
     if (updateErr) {
