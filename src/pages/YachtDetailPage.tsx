@@ -11,8 +11,6 @@ export default function YachtDetailPage() {
   const { session } = useSession()
 
   const [name, setName] = useState("")
-  const [makeModel, setMakeModel] = useState("")
-  const [location, setLocation] = useState("")
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -30,8 +28,6 @@ export default function YachtDetailPage() {
       .then(({ data }) => {
         if (!data) return
         setName(data.name)
-        setMakeModel("")
-        setLocation("")
       })
   }, [id, session])
 
@@ -100,29 +96,6 @@ export default function YachtDetailPage() {
     }
     }
 
-    // Remove non-historical links first.
-    const { error: groupLinkErr } = await supabase
-      .from("yacht_group_links")
-      .delete()
-      .eq("yacht_id", id)
-
-    if (groupLinkErr) {
-      setDeleteError(groupLinkErr.message)
-      setDeleting(false)
-      return
-    }
-
-    const { error: userLinkErr } = await supabase
-      .from("yacht_user_links")
-      .delete()
-      .eq("yacht_id", id)
-
-    if (userLinkErr) {
-      setDeleteError(userLinkErr.message)
-      setDeleting(false)
-      return
-    }
-
     const { error: delErr } = await supabase.from("yachts").delete().eq("id", id)
 
     if (delErr) {
@@ -169,20 +142,6 @@ export default function YachtDetailPage() {
         style={{ marginBottom: 12 }}
       />
 
-      <label>Make / Model:</label>
-      <input
-        value={makeModel}
-        onChange={(e) => setMakeModel(e.target.value)}
-        style={{ marginBottom: 12 }}
-      />
-
-      <label>Location:</label>
-      <input
-        value={location}
-        onChange={(e) => setLocation(e.target.value)}
-        style={{ marginBottom: 12 }}
-      />
-
       {saveError && (
         <div style={{ color: "var(--accent-red)", marginBottom: 10, fontSize: 13 }}>
           {saveError}
@@ -201,25 +160,7 @@ export default function YachtDetailPage() {
 
       <hr />
 
-      {/* Group links */}
-
       <div style={{ marginTop: 8, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <button
-          onClick={() => navigate(`/yachts/${id}/groups`)}
-          style={{
-            background: "var(--border-subtle)",
-            border: "none",
-            borderRadius: 12,
-            padding: "4px 10px",
-            fontSize: 13,
-            fontWeight: 500,
-            color: "var(--text-primary)",
-            cursor: "pointer",
-          }}
-        >
-          Groups
-        </button>
-
         <button
           onClick={handleDelete}
           disabled={deleting}

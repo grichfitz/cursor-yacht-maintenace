@@ -1,37 +1,60 @@
 import { supabase } from "../lib/supabase"
+import { loadManagerScopeGroupIds } from "./groupScope"
 
 type GroupMemberRow = { group_id: string }
-type YachtGroupLinkRow = { yacht_id: string }
+type YachtRow = { id: string }
 
 /**
- * Flat access model (canonical):
- * - user -> group_members(user_id, group_id)
- * - group -> yacht_group_links(group_id, yacht_id)
- *
- * No recursive parent_group resolution.
+ * Yacht visibility:
+ * - Prefer RPC `user_group_ids()` (includes descendants) when available
+ * - Fallback to direct memberships (group_memberships and/or group_members)
  */
 export async function loadAccessibleYachtIds(userId: string): Promise<string[]> {
-  const { data: memberships, error: mErr } = await supabase
-    .from("group_members")
-    .select("group_id")
-    .eq("user_id", userId)
+  // Try to include descendant groups via RPC where available.
+  let groupIdList: string[] = []
+  try {
+    groupIdList = await loadManagerScopeGroupIds(userId)
+  } catch {
+    groupIdList = []
+  }
 
-  if (mErr) throw mErr
+  // Fallback: direct memberships only (non-recursive).
+  if (groupIdList.length === 0) {
+    const groupIds = new Set<string>()
 
-  const groupIds = Array.from(
-    new Set(((memberships as GroupMemberRow[]) ?? []).map((m) => m.group_id).filter(Boolean))
-  )
-  if (groupIds.length === 0) return []
+    const [m1, m2] = await Promise.allSettled([
+      supabase.from("group_memberships").select("group_id").eq("user_id", userId),
+      supabase.from("group_members").select("group_id").eq("user_id", userId),
+    ])
 
-  const { data: links, error: lErr } = await supabase
-    .from("yacht_group_links")
-    .select("yacht_id")
-    .in("group_id", groupIds)
+    if (m1.status === "fulfilled") {
+      const { data, error } = m1.value
+      if (error) throw error
+      ;((data as GroupMemberRow[]) ?? []).forEach((r) => {
+        if (r?.group_id) groupIds.add(r.group_id)
+      })
+    }
 
-  if (lErr) throw lErr
+    if (m2.status === "fulfilled") {
+      const { data, error } = m2.value
+      if (error) throw error
+      ;((data as GroupMemberRow[]) ?? []).forEach((r) => {
+        if (r?.group_id) groupIds.add(r.group_id)
+      })
+    }
 
-  return Array.from(
-    new Set(((links as YachtGroupLinkRow[]) ?? []).map((l) => l.yacht_id).filter(Boolean))
-  )
+    groupIdList = Array.from(groupIds)
+  }
+
+  if (groupIdList.length === 0) return []
+
+  const { data: yachts, error: yErr } = await supabase
+    .from("yachts")
+    .select("id")
+    .in("group_id", groupIdList)
+
+  if (yErr) throw yErr
+
+  return Array.from(new Set(((yachts as YachtRow[]) ?? []).map((y) => y.id).filter(Boolean)))
 }
 

@@ -4,12 +4,15 @@ import { supabase } from "../../lib/supabase"
 import EditorNav from "./EditorNav"
 import { useSession } from "../../auth/SessionProvider"
 import TreeDisplay, { type TreeNode } from "../../components/TreeDisplay"
+import { useMyRole } from "../../hooks/useMyRole"
+import { loadManagerScopeGroupIds } from "../../utils/groupScope"
 
 type GroupRow = { id: string; name: string; parent_group_id: string | null }
 
 export default function EditorGroupsPage() {
   const { session } = useSession()
   const navigate = useNavigate()
+  const { role, loading: roleLoading } = useMyRole()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [groups, setGroups] = useState<GroupRow[]>([])
@@ -34,20 +37,30 @@ export default function EditorGroupsPage() {
     setLoading(true)
     setError(null)
 
-    const { data, error: loadErr } = await supabase
-      .from("groups")
-      .select("id,name,parent_group_id")
-      .order("name")
+    try {
+      let scopeIds: string[] | null = null
+      if (role === "manager") {
+        scopeIds = await loadManagerScopeGroupIds(session!.user.id)
+      }
 
-    if (loadErr) {
-      setError(loadErr.message)
+      let q = supabase.from("groups").select("id,name,parent_group_id").order("name")
+      if (scopeIds && scopeIds.length > 0) q = q.in("id", scopeIds)
+      if (scopeIds && scopeIds.length === 0) {
+        setGroups([])
+        setLoading(false)
+        return
+      }
+
+      const { data, error: loadErr } = await q
+      if (loadErr) throw loadErr
+
+      setGroups((data as GroupRow[]) ?? [])
+      setLoading(false)
+    } catch (e: any) {
+      setError(e?.message || "Failed to load groups.")
       setGroups([])
       setLoading(false)
-      return
     }
-
-    setGroups((data as GroupRow[]) ?? [])
-    setLoading(false)
   }
 
   useEffect(() => {
@@ -61,15 +74,15 @@ export default function EditorGroupsPage() {
     return () => {
       cancelled = true
     }
-  }, [session])
+  }, [session, role])
 
-  if (loading) return <div className="screen">Loading…</div>
+  if (loading || roleLoading) return <div className="screen">Loading…</div>
 
   return (
     <div className="screen">
       <EditorNav />
       <div className="screen-title">Editor · Groups</div>
-      <div className="screen-subtitle">Admin-only.</div>
+      <div className="screen-subtitle">Admin or manager.</div>
 
       {error && (
         <div style={{ color: "var(--accent-red)", marginBottom: 10, fontSize: 13 }}>

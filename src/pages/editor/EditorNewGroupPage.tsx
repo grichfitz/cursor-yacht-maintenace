@@ -4,12 +4,15 @@ import { supabase } from "../../lib/supabase"
 import { useSession } from "../../auth/SessionProvider"
 import EditorNav from "./EditorNav"
 import { buildGroupParentSelectOptions } from "../../utils/groupTreeUi"
+import { useMyRole } from "../../hooks/useMyRole"
+import { loadManagerScopeGroupIds } from "../../utils/groupScope"
 
 type GroupRow = { id: string; name: string; parent_group_id: string | null }
 
 export default function EditorNewGroupPage() {
   const navigate = useNavigate()
   const { session } = useSession()
+  const { role, loading: roleLoading } = useMyRole()
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -29,29 +32,46 @@ export default function EditorNewGroupPage() {
     const loadGroups = async () => {
       setLoading(true)
       setError(null)
-      const { data, error: gErr } = await supabase.from("groups").select("id,name,parent_group_id").order("name")
-      if (cancelled) return
-      if (gErr) {
-        setError(gErr.message)
+      try {
+        let scopeIds: string[] | null = null
+        if (role === "manager") scopeIds = await loadManagerScopeGroupIds(session.user.id)
+
+        let q = supabase.from("groups").select("id,name,parent_group_id").order("name")
+        if (scopeIds && scopeIds.length > 0) q = q.in("id", scopeIds)
+        if (scopeIds && scopeIds.length === 0) {
+          setGroups([])
+          setLoading(false)
+          return
+        }
+
+        const { data, error: gErr } = await q
+        if (cancelled) return
+        if (gErr) throw gErr
+        setGroups((data as GroupRow[]) ?? [])
+        setLoading(false)
+      } catch (e: any) {
+        if (cancelled) return
+        setError(e?.message || "Failed to load groups.")
         setGroups([])
         setLoading(false)
-        return
       }
-      setGroups((data as GroupRow[]) ?? [])
-      setLoading(false)
     }
 
     loadGroups()
     return () => {
       cancelled = true
     }
-  }, [session])
+  }, [session, role])
 
   const create = async () => {
     setError(null)
     const trimmed = name.trim()
     if (!trimmed) {
       setError("Group name is required.")
+      return
+    }
+    if (role === "manager" && !parentId) {
+      setError("Managers must select a parent group.")
       return
     }
 
@@ -70,13 +90,13 @@ export default function EditorNewGroupPage() {
     navigate("/editor/groups", { replace: true })
   }
 
-  if (loading) return <div className="screen">Loading…</div>
+  if (loading || roleLoading) return <div className="screen">Loading…</div>
 
   return (
     <div className="screen">
       <EditorNav />
       <div className="screen-title">Create group</div>
-      <div className="screen-subtitle">Admin-only.</div>
+      <div className="screen-subtitle">Admin or manager.</div>
 
       {error && <div style={{ color: "var(--accent-red)", marginBottom: 12, fontSize: 13 }}>{error}</div>}
 

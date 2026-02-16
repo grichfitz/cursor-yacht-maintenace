@@ -4,11 +4,14 @@ import { supabase } from "../../lib/supabase"
 import EditorNav from "./EditorNav"
 import { useSession } from "../../auth/SessionProvider"
 import TreeDisplay, { type TreeNode } from "../../components/TreeDisplay"
+import { useMyRole } from "../../hooks/useMyRole"
+import { loadManagerScopeGroupIds } from "../../utils/groupScope"
 
 type CategoryRow = { id: string; name: string; parent_category_id: string | null }
 
 export default function EditorCategoriesPage() {
   const { session } = useSession()
+  const { role, loading: roleLoading } = useMyRole()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -33,47 +36,67 @@ export default function EditorCategoriesPage() {
     setError(null)
     setNotice(null)
 
-    const { data, error: loadErr } = await supabase
-      .from("categories")
-      .select("id,name,parent_category_id")
-      .order("name")
+    try {
+      let scopeIds: string[] | null = null
+      if (role === "manager") scopeIds = await loadManagerScopeGroupIds(session!.user.id)
 
-    if (loadErr) {
-      // Backward-compat: if the hierarchy migration isn't applied yet, fall back to flat categories.
-      const msg = String(loadErr.message || "")
-      const missingParentCol =
-        msg.includes("parent_category_id") && msg.toLowerCase().includes("does not exist")
-      if (!missingParentCol) {
-        setError(loadErr.message)
+      const runQuery = async (withGroup: boolean) => {
+        let q = supabase
+          .from("categories")
+          .select(withGroup ? "id,name,parent_category_id,group_id" : "id,name,parent_category_id")
+          .order("name")
+
+        if (withGroup && scopeIds && scopeIds.length > 0) q = q.in("group_id", scopeIds)
+        return await q
+      }
+
+      if (scopeIds && scopeIds.length === 0) {
         setCategories([])
         setLoading(false)
         return
       }
 
-      const { data: flat, error: flatErr } = await supabase
-        .from("categories")
-        .select("id,name")
-        .order("name")
+      let { data, error: loadErr } = await runQuery(true)
 
-      if (flatErr) {
-        setError(flatErr.message)
-        setCategories([])
+      if (loadErr) {
+        const msg = String(loadErr.message || "")
+        const missingGroupCol = msg.includes("group_id") && msg.toLowerCase().includes("does not exist")
+        if (missingGroupCol) {
+          ;({ data, error: loadErr } = await runQuery(false))
+        }
+      }
+
+      if (loadErr) {
+        // Backward-compat: if the hierarchy migration isn't applied yet, fall back to flat categories.
+        const msg = String(loadErr.message || "")
+        const missingParentCol =
+          msg.includes("parent_category_id") && msg.toLowerCase().includes("does not exist")
+        if (!missingParentCol) throw loadErr
+
+        const { data: flat, error: flatErr } = await supabase
+          .from("categories")
+          .select("id,name")
+          .order("name")
+
+        if (flatErr) throw flatErr
+
+        setCategories((((flat as any[]) ?? []) as Array<{ id: string; name: string }>).map((c) => ({
+          id: c.id,
+          name: c.name,
+          parent_category_id: null,
+        })))
+        setNotice("Nested categories are not enabled yet. Apply `migration_phase1c_categories_hierarchy.sql` in Supabase.")
         setLoading(false)
         return
       }
 
-      setCategories((((flat as any[]) ?? []) as Array<{ id: string; name: string }>).map((c) => ({
-        id: c.id,
-        name: c.name,
-        parent_category_id: null,
-      })))
-      setNotice("Nested categories are not enabled yet. Apply `migration_phase1c_categories_hierarchy.sql` in Supabase.")
+      setCategories((data as CategoryRow[]) ?? [])
       setLoading(false)
-      return
+    } catch (e: any) {
+      setError(e?.message || "Failed to load categories.")
+      setCategories([])
+      setLoading(false)
     }
-
-    setCategories((data as CategoryRow[]) ?? [])
-    setLoading(false)
   }
 
   useEffect(() => {
@@ -87,15 +110,15 @@ export default function EditorCategoriesPage() {
     return () => {
       cancelled = true
     }
-  }, [session])
+  }, [session, role])
 
-  if (loading) return <div className="screen">Loading…</div>
+  if (loading || roleLoading) return <div className="screen">Loading…</div>
 
   return (
     <div className="screen">
       <EditorNav />
       <div className="screen-title">Editor · Categories</div>
-      <div className="screen-subtitle">Admin-only.</div>
+      <div className="screen-subtitle">Admin or manager.</div>
 
       {error && (
         <div style={{ color: "var(--accent-red)", marginBottom: 10, fontSize: 13 }}>

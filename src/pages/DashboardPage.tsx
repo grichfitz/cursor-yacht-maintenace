@@ -170,7 +170,7 @@ export default function DashboardPage() {
             </button>
           )}
 
-          {role === "admin" && (
+          {(role === "admin" || role === "manager") && (
             <button type="button" className="quicklink" onClick={() => navigate("/editor")}>
               <div className="quicklink-icon" aria-hidden="true">
                 <Wrench size={22} />

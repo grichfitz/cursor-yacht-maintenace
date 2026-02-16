@@ -1,63 +1,59 @@
-import React, { useEffect, useMemo, useState } from "react"
+import React, { useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { supabase } from "../lib/supabase"
-import { useSession } from "../auth/SessionProvider"
 import EditorNav from "./editor/EditorNav"
-
-type UserRow = {
-  id: string
-  display_name: string | null
-  email: string | null
-  role: string | null
-}
+import TreeDisplay, { type TreeNode } from "../components/TreeDisplay"
+import { useUserGroupTree } from "../hooks/useUserGroupTree"
+import { Folder, User as UserIcon } from "lucide-react"
+import { pickBadgeVariant } from "../ui/badgeColors"
 
 export default function UsersPage() {
   const navigate = useNavigate()
-  const { session } = useSession()
-
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const [users, setUsers] = useState<UserRow[]>([])
-  const [groupCountByUserId, setGroupCountByUserId] = useState<Record<string, number>>({})
-
   const [filter, setFilter] = useState("")
 
-  const load = async () => {
-    setLoading(true)
-    setError(null)
+  const { nodes, loading, error } = useUserGroupTree()
 
-    // No user directory table to list users from.
-    setError("User directory is not available.")
-    setUsers([])
-    setGroupCountByUserId({})
-    setLoading(false)
-  }
-
-  useEffect(() => {
-    if (!session) return
-    let cancelled = false
-    const run = async () => {
-      if (cancelled) return
-      await load()
-    }
-    run()
-    return () => {
-      cancelled = true
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session])
-
-  const filteredUsers = useMemo(() => {
+  const visibleNodes = useMemo(() => {
     const q = filter.trim().toLowerCase()
-    if (!q) return users
-    return users.filter((u) => {
-      const hay = `${u.display_name ?? ""} ${u.email ?? ""} ${u.id}`.toLowerCase()
+    if (!q) return nodes as TreeNode[]
+
+    const byId = new Map<string, TreeNode>()
+    ;(nodes as TreeNode[]).forEach((n) => byId.set(n.id, n))
+
+    const keep = new Set<string>()
+    const matches = (nodes as TreeNode[]).filter((n) => {
+      if (n.nodeType !== "user") return false
+      const full = String(n.meta?.full_name ?? "")
+      const email = String(n.meta?.email ?? "")
+      const hay = `${full} ${email} ${n.label} ${n.meta?.user_id ?? ""}`.toLowerCase()
       return hay.includes(q)
     })
-  }, [users, filter])
 
-  if (loading) return <div className="screen">Loading…</div>
+    for (const n of matches) {
+      keep.add(n.id)
+      let cur: TreeNode | undefined = n
+      let guard = 0
+      while (cur?.parentId && guard < 50) {
+        guard++
+        keep.add(cur.parentId)
+        cur = byId.get(cur.parentId)
+      }
+    }
+
+    return (nodes as TreeNode[]).filter((n) => keep.has(n.id))
+  }, [nodes, filter])
+
+  const defaultExpandedIds = useMemo(() => {
+    const q = filter.trim().toLowerCase()
+    const list = visibleNodes as TreeNode[]
+    if (q) {
+      return list.filter((n) => n.nodeType === "group").map((n) => n.id)
+    }
+    return list.filter((n) => n.nodeType === "group" && n.parentId === null).map((n) => n.id)
+  }, [visibleNodes, filter])
+
+  const userCount = useMemo(() => {
+    return (visibleNodes as TreeNode[]).filter((n) => n.nodeType === "user").length
+  }, [visibleNodes])
 
   return (
     <div className="screen">
@@ -65,6 +61,7 @@ export default function UsersPage() {
       <div className="screen-title">Editor · Users</div>
       <div className="screen-subtitle">Admin-only.</div>
 
+      {loading ? <div style={{ padding: 12, fontSize: 13, opacity: 0.75 }}>Loading…</div> : null}
       {error && (
         <div style={{ color: "var(--accent-red)", marginBottom: 10, fontSize: 13 }}>{error}</div>
       )}
@@ -81,37 +78,69 @@ export default function UsersPage() {
 
       <div className="card card-list">
         <div className="list-row" style={{ justifyContent: "space-between" }}>
-          <div style={{ fontWeight: 800 }}>Users</div>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>{filteredUsers.length}</div>
+          <div style={{ fontWeight: 800 }}>Directory</div>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>{userCount}</div>
         </div>
 
-        {filteredUsers.length === 0 ? (
+        {!loading && userCount === 0 ? (
           <div style={{ padding: 12, fontSize: 13, opacity: 0.75 }}>No matching users.</div>
         ) : (
-          filteredUsers.map((u) => (
-            <div key={u.id} style={{ borderTop: "1px solid rgba(0,0,0,0.06)" }}>
-              <div className="list-row" style={{ justifyContent: "space-between", gap: 10 }}>
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  <div style={{ fontWeight: 700 }}>{u.display_name || u.email || u.id}</div>
-                  <div style={{ fontSize: 12, opacity: 0.75 }}>
-                    {(u.email ? u.email : "") +
-                      (u.email ? " · " : "") +
-                      String(u.role || "crew") +
-                      ` · ${groupCountByUserId[u.id] ?? 0} groups`}
+          <div style={{ padding: 6 }}>
+            <TreeDisplay
+              nodes={visibleNodes as TreeNode[]}
+              defaultExpandedIds={defaultExpandedIds}
+              renderIcon={(node) => {
+                if (node.nodeType === "group") {
+                  const isVirtual = !!node.meta?.isVirtual
+                  const variant = isVirtual ? "gray" : pickBadgeVariant(node.id)
+                  return (
+                    <span className={`tree-icon-badge tree-icon-badge--${variant}`}>
+                      <Folder size={16} />
+                    </span>
+                  )
+                }
+                if (node.nodeType === "user") {
+                  const variant = pickBadgeVariant(node.parentId ?? node.id)
+                  return (
+                    <span className={`tree-icon-badge tree-icon-badge--${variant} tree-icon-badge--solid`}>
+                      <UserIcon size={16} />
+                    </span>
+                  )
+                }
+                return null
+              }}
+              renderLabel={(node) => {
+                if (node.nodeType !== "user") return <span>{node.label}</span>
+                const full = String(node.meta?.full_name ?? "").trim()
+                const email = String(node.meta?.email ?? "").trim()
+                const primary = full || email || String(node.meta?.user_id ?? node.id)
+                const secondary = full ? email : ""
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.15 }}>
+                    {/* Use <strong> + 700 for consistent bold rendering on Windows fonts */}
+                    <strong style={{ fontWeight: 700 }}>{primary}</strong>
+                    {secondary ? <div style={{ fontSize: 12, opacity: 0.75 }}>{secondary}</div> : null}
                   </div>
-                </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => navigate(`/users/${u.id}`)}
-                  >
+                )
+              }}
+              renderActions={(node) => {
+                if (node.nodeType !== "user") return null
+                const userId = String(node.meta?.user_id ?? "")
+                if (!userId) return null
+                return (
+                  <button type="button" className="secondary" onClick={() => navigate(`/users/${userId}`)}>
                     Edit
                   </button>
-                </div>
-              </div>
-            </div>
-          ))
+                )
+              }}
+              onSelect={(node) => {
+                if (node.nodeType !== "user") return
+                const userId = String(node.meta?.user_id ?? "")
+                if (!userId) return
+                navigate(`/users/${userId}`)
+              }}
+            />
+          </div>
         )}
       </div>
     </div>

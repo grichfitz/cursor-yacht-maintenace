@@ -2,6 +2,8 @@ import { useEffect, useState } from "react"
 import { supabase } from "../lib/supabase"
 import type { TreeNode } from "../components/TreeDisplay"
 import { useSession } from "../auth/SessionProvider"
+import { useMyRole } from "./useMyRole"
+import { loadManagerScopeGroupIds } from "../utils/groupScope"
 
 /* ---------- Constants ---------- */
 
@@ -22,15 +24,11 @@ type YachtRow = {
   archived_at: string | null
 }
 
-type YachtGroupLinkRow = {
-  yacht_id: string
-  group_id: string
-}
-
 /* ---------- Hook ---------- */
 
 export function useYachtGroupTree() {
   const { session } = useSession()
+  const { role } = useMyRole()
   const [nodes, setNodes] = useState<TreeNode[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -49,12 +47,26 @@ export function useYachtGroupTree() {
 
       try {
 
+      const scopeGroupIds = role === "manager"
+        ? await loadManagerScopeGroupIds(session.user.id)
+        : null
+
+      if (role === "manager" && scopeGroupIds && scopeGroupIds.length === 0) {
+        if (!cancelled) {
+          setNodes([])
+          setLoading(false)
+        }
+        return
+      }
+
       /* ---------- 1. Load groups ---------- */
 
-      const { data: groups, error: groupError } = await supabase
-        .from("groups")
-        .select("id, name, parent_group_id")
-        .order("name")
+      let gq = supabase.from("groups").select("id, name, parent_group_id").order("name")
+      if (role === "manager" && scopeGroupIds && scopeGroupIds.length > 0) {
+        gq = gq.in("id", scopeGroupIds)
+      }
+
+      const { data: groups, error: groupError } = await gq
 
       if (cancelled) return
 
@@ -64,26 +76,14 @@ export function useYachtGroupTree() {
         return
       }
 
-      /* ---------- 2. Load yacht-group links ---------- */
+      /* ---------- 2. Load all yachts ---------- */
 
-      const { data: links, error: linkError } = await supabase
-        .from("yacht_group_links")
-        .select("yacht_id, group_id")
-
-      if (cancelled) return
-
-      if (linkError) {
-        setError(linkError.message)
-        setLoading(false)
-        return
+      let yq = supabase.from("yachts").select("id, name, group_id, archived_at").order("name")
+      if (role === "manager" && scopeGroupIds && scopeGroupIds.length > 0) {
+        yq = yq.in("group_id", scopeGroupIds)
       }
 
-      /* ---------- 3. Load all yachts ---------- */
-
-      const { data: yachts, error: yachtError } = await supabase
-        .from("yachts")
-        .select("id, name, group_id, archived_at")
-        .order("name")
+      const { data: yachts, error: yachtError } = await yq
 
       if (cancelled) return
 
@@ -93,26 +93,27 @@ export function useYachtGroupTree() {
         return
       }
 
-      /* ---------- 4. Build lookup sets ---------- */
+      /* ---------- 3. Build lookup sets ---------- */
 
       const groupList = (groups as GroupRow[]) ?? []
       const groupIdSet = new Set(groupList.map((g) => g.id))
-
-      const activeLinks = ((links as YachtGroupLinkRow[]) ?? []).filter((l) => groupIdSet.has(l.group_id))
 
       const yachtMap = new Map<string, YachtRow>()
       ;(yachts as YachtRow[]).forEach((y) => {
         yachtMap.set(y.id, y)
       })
 
-      /* ---------- 5. Only show groups that contain yachts ---------- */
+      /* ---------- 4. Only show groups that contain yachts ---------- */
 
-      const groupIdsWithYachts = new Set<string>(activeLinks.map((l) => l.group_id))
+      const yachtList = (yachts as YachtRow[]) ?? []
+      const groupIdsWithYachts = new Set<string>(
+        yachtList.map((y) => y.group_id).filter((gid) => gid && groupIdSet.has(gid))
+      )
 
       // Canonical access is flat; we only render groups that contain yachts.
       const relevantGroups = groupList.filter((g) => groupIdsWithYachts.has(g.id))
 
-      /* ---------- 6. Group nodes ---------- */
+      /* ---------- 5. Group nodes ---------- */
 
       const groupNodes: TreeNode[] =
         relevantGroups.map((g) => {
@@ -125,30 +126,24 @@ export function useYachtGroupTree() {
           }
         })
 
-      /* ---------- 7. Yacht nodes ---------- */
+      /* ---------- 6. Yacht nodes ---------- */
 
-      const yachtNodes: TreeNode[] =
-        activeLinks
-          .map((l) => {
-            const yacht = yachtMap.get(l.yacht_id)
-            if (!yacht) return null
-
-            return {
-              id: yacht.id,
-              parentId: l.group_id,
-              label: yacht.name,
-              nodeType: "yacht",
-              meta: yacht,
-            } as TreeNode
-          })
-          .filter(Boolean) as TreeNode[]
+      const yachtNodes: TreeNode[] = yachtList
+        .filter((y) => !!y.group_id && groupIdSet.has(y.group_id))
+        .map((y) => ({
+          id: y.id,
+          parentId: y.group_id,
+          label: y.name,
+          nodeType: "yacht",
+          meta: y,
+        }))
 
       /* ---------- 8. Unassigned yachts ---------- */
 
       const unassignedYachts: TreeNode[] = []
       const unassignedGroupNode: TreeNode | null = null
 
-      /* ---------- 9. Combine & publish ---------- */
+      /* ---------- 7. Combine & publish ---------- */
 
       const allNodes: TreeNode[] = [
         ...groupNodes,
@@ -201,7 +196,7 @@ export function useYachtGroupTree() {
       window.removeEventListener("focus", onFocus)
       document.removeEventListener("visibilitychange", onVisibility)
     }
-  }, [session])
+  }, [session, role])
 
   return {
     nodes,

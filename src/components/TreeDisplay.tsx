@@ -17,6 +17,7 @@ type TreeDisplayProps = {
   onSelect?: (node: TreeNode) => void
   renderActions?: (node: TreeNode) => React.ReactNode
   renderIcon?: (node: TreeNode) => React.ReactNode
+  renderLabel?: (node: TreeNode) => React.ReactNode
   className?: string
 }
 
@@ -27,6 +28,7 @@ export default function TreeDisplay({
   onSelect,
   renderActions,
   renderIcon,
+  renderLabel,
   className,
 }: TreeDisplayProps) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
@@ -98,7 +100,7 @@ export default function TreeDisplay({
             }}
           >
             {renderIcon?.(node)}
-            <span>{node.label}</span>
+            {renderLabel ? renderLabel(node) : <span>{node.label}</span>}
           </div>
 
           {/* ---------- Actions ---------- */}

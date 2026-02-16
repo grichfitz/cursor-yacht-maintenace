@@ -14,6 +14,13 @@ type YachtRow = {
   archived_at: string | null
 }
 
+type TaskRow = {
+  id: string
+  title: string
+  status: string
+  due_date: string | null
+}
+
 export default function EditorEditYachtPage() {
   const navigate = useNavigate()
   const { session } = useSession()
@@ -22,16 +29,17 @@ export default function EditorEditYachtPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [archiving, setArchiving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
   const [groups, setGroups] = useState<GroupRow[]>([])
 
   const [name, setName] = useState("")
   const [groupId, setGroupId] = useState("")
-  const [makeModel, setMakeModel] = useState("")
-  const [location, setLocation] = useState("")
-  const [photoUrl, setPhotoUrl] = useState("")
-  const [latestEngineerHours, setLatestEngineerHours] = useState<string>("")
+  const [archivedAt, setArchivedAt] = useState<string | null>(null)
+  const [tasks, setTasks] = useState<TaskRow[]>([])
+  const [tasksError, setTasksError] = useState<string | null>(null)
 
   const orderedGroups = useMemo(() => [...groups].sort((a, b) => a.name.localeCompare(b.name)), [groups])
 
@@ -44,13 +52,19 @@ export default function EditorEditYachtPage() {
       setLoading(true)
       setError(null)
 
-      const [{ data: g, error: gErr }, { data: y, error: yErr }] = await Promise.all([
+      const [{ data: g, error: gErr }, { data: y, error: yErr }, { data: t, error: tErr }] = await Promise.all([
         supabase.from("groups").select("id,name").order("name"),
         supabase
           .from("yachts")
           .select("id,name,group_id,archived_at")
           .eq("id", yachtId)
           .maybeSingle(),
+        supabase
+          .from("tasks")
+          .select("id,title,status,due_date")
+          .eq("yacht_id", yachtId)
+          .order("due_date", { ascending: true, nullsFirst: false })
+          .limit(200),
       ])
 
       if (cancelled) return
@@ -73,10 +87,9 @@ export default function EditorEditYachtPage() {
       setGroups((g as GroupRow[]) ?? [])
       setName(yacht.name ?? "")
       setGroupId(yacht.group_id ?? "")
-      setMakeModel("")
-      setLocation("")
-      setPhotoUrl("")
-      setLatestEngineerHours("")
+      setArchivedAt(yacht.archived_at ?? null)
+      setTasks((t as TaskRow[]) ?? [])
+      setTasksError(tErr ? tErr.message : null)
       setLoading(false)
     }
 
@@ -158,18 +171,6 @@ export default function EditorEditYachtPage() {
       return
     }
 
-    // Remove non-historical links first.
-    const linkDeletes = await Promise.all([
-      supabase.from("yacht_group_links").delete().eq("yacht_id", yachtId),
-      supabase.from("yacht_user_links").delete().eq("yacht_id", yachtId),
-    ])
-    const linkError = linkDeletes.find((r) => r.error)?.error
-    if (linkError) {
-      setError(linkError.message)
-      setDeleting(false)
-      return
-    }
-
     const { error: delErr } = await supabase.from("yachts").delete().eq("id", yachtId)
     setDeleting(false)
     if (delErr) {
@@ -178,6 +179,34 @@ export default function EditorEditYachtPage() {
     }
 
     navigate("/editor/yachts", { replace: true })
+  }
+
+  const toggleArchive = async () => {
+    if (!yachtId) return
+    setError(null)
+    setNotice(null)
+
+    const nextIsArchived = !archivedAt
+    const ok = window.confirm(nextIsArchived ? "Archive this yacht?\n\nIt will be hidden from lists." : "Unarchive this yacht?\n\nIt will reappear in lists.")
+    if (!ok) return
+
+    setArchiving(true)
+    const nextArchivedAt = nextIsArchived ? new Date().toISOString() : null
+
+    const { error: upErr } = await supabase
+      .from("yachts")
+      .update({ archived_at: nextArchivedAt })
+      .eq("id", yachtId)
+
+    setArchiving(false)
+
+    if (upErr) {
+      setError(upErr.message)
+      return
+    }
+
+    setArchivedAt(nextArchivedAt)
+    setNotice(nextIsArchived ? "Yacht archived." : "Yacht unarchived.")
   }
 
   if (!yachtId) return null
@@ -190,6 +219,9 @@ export default function EditorEditYachtPage() {
       <div className="screen-subtitle">Admin-only.</div>
 
       {error ? <div style={{ color: "var(--accent-red)", marginBottom: 10, fontSize: 13 }}>{error}</div> : null}
+      {notice && !error ? (
+        <div style={{ color: "var(--text-secondary)", marginBottom: 10, fontSize: 13 }}>{notice}</div>
+      ) : null}
 
       <div className="card">
         <label>Name:</label>
@@ -205,23 +237,77 @@ export default function EditorEditYachtPage() {
           ))}
         </select>
 
-        <label>Make / Model:</label>
-        <input value={makeModel} onChange={(e) => setMakeModel(e.target.value)} style={{ marginBottom: 12 }} disabled={saving || deleting} />
-
-        <label>Location:</label>
-        <input value={location} onChange={(e) => setLocation(e.target.value)} style={{ marginBottom: 12 }} disabled={saving || deleting} />
-
-        <label>Photo URL (optional):</label>
-        <input value={photoUrl} onChange={(e) => setPhotoUrl(e.target.value)} style={{ marginBottom: 12 }} disabled={saving || deleting} />
-
-        <label>Latest engineer hours (optional):</label>
-        <input value={latestEngineerHours} onChange={(e) => setLatestEngineerHours(e.target.value)} style={{ marginBottom: 12 }} disabled={saving || deleting} />
-
         <button type="button" className="cta-button" onClick={save} disabled={saving || deleting}>
           {saving ? "Saving…" : "Save"}
         </button>
 
         <hr />
+
+        <div style={{ fontWeight: 800, marginBottom: 8 }}>Tasks</div>
+        {tasksError ? (
+          <div style={{ color: "var(--accent-red)", marginBottom: 10, fontSize: 13 }}>{tasksError}</div>
+        ) : null}
+
+        <div className="card card-list" style={{ margin: 0 }}>
+          <div className="list-row" style={{ justifyContent: "space-between" }}>
+            <div style={{ fontWeight: 700 }}>Tasks</div>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => navigate(`/editor/tasks/new?yachtId=${encodeURIComponent(yachtId)}`)}
+              disabled={saving || deleting}
+            >
+              New task
+            </button>
+          </div>
+
+          {tasks.length === 0 ? (
+            <div style={{ padding: 12, fontSize: 13, opacity: 0.75 }}>No tasks.</div>
+          ) : (
+            tasks.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className="list-button"
+                onClick={() => navigate(`/editor/tasks/${t.id}`)}
+              >
+                <div className="list-button-main">
+                  <div className="list-button-title">{t.title}</div>
+                  <div className="list-button-subtitle">
+                    {t.due_date ? `Due ${new Date(t.due_date).toLocaleDateString()}` : "No due date"} · {t.status}
+                  </div>
+                </div>
+                <div className="list-button-chevron">›</div>
+              </button>
+            ))
+          )}
+        </div>
+
+        <hr />
+
+        <div style={{ fontWeight: 800, marginBottom: 6 }}>Archive</div>
+        <div style={{ fontSize: 13, opacity: 0.75, marginBottom: 10 }}>
+          Archived yachts are hidden from lists.
+        </div>
+        {archivedAt ? (
+          <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 10 }}>
+            Archived {new Date(archivedAt).toLocaleDateString()}
+          </div>
+        ) : null}
+
+        <button
+          type="button"
+          className="secondary"
+          onClick={toggleArchive}
+          disabled={saving || deleting || archiving}
+          style={{
+            width: "100%",
+            color: archivedAt ? "var(--accent-blue)" : "var(--accent-orange)",
+            background: archivedAt ? "rgba(10, 132, 255, 0.10)" : "rgba(255, 159, 10, 0.12)",
+          }}
+        >
+          {archiving ? (archivedAt ? "Unarchiving…" : "Archiving…") : archivedAt ? "Unarchive yacht" : "Archive yacht"}
+        </button>
 
         <button
           type="button"

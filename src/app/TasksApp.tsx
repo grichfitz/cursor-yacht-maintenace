@@ -3,7 +3,7 @@ import TreeDisplay from "../components/TreeDisplay"
 import type { TreeNode } from "../components/TreeDisplay"
 import { useTaskTree } from "../hooks/useTaskTree"
 import React from "react";
-import { CheckSquare, Ship } from "lucide-react"
+import { CheckSquare, Tag } from "lucide-react"
 import { pickBadgeVariant } from "../ui/badgeColors"
 import EditorNav from "../pages/editor/EditorNav"
 
@@ -20,7 +20,7 @@ export default function TasksApp() {
     <div className="screen" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <EditorNav />
       <div className="screen-title">Editor · Tasks</div>
-      <div className="screen-subtitle">Admin-only.</div>
+      <div className="screen-subtitle">Admin or manager.</div>
 
       {error && (
         <div
@@ -50,11 +50,11 @@ export default function TasksApp() {
           nodes={visibleNodes as TreeNode[]}
           defaultExpandedIds={[]}
           renderIcon={(node) => {
-            if (node.nodeType === "yacht") {
+            if (node.nodeType === "category") {
               const variant = pickBadgeVariant(node.id)
               return (
                 <span className={`tree-icon-badge tree-icon-badge--${variant}`}>
-                  <Ship size={16} />
+                  <Tag size={16} />
                 </span>
               )
             }

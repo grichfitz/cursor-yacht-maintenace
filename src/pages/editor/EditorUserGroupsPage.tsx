@@ -11,7 +11,8 @@ export default function EditorUserGroupsPage() {
   const { userId } = useParams<{ userId: string }>()
   const { nodes, loading: groupsLoading, error: groupsError } = useGroupTree()
 
-  const [userLabel, setUserLabel] = useState<string>("")
+  const [fullName, setFullName] = useState<string>("")
+  const [email, setEmail] = useState<string>("")
   const [userLoading, setUserLoading] = useState(true)
   const [userError, setUserError] = useState<string | null>(null)
 
@@ -26,8 +27,24 @@ export default function EditorUserGroupsPage() {
 
       if (cancelled) return
 
-      setUserLabel(userId)
-      setUserLoading(false)
+      try {
+        const { data, error } = await supabase
+          .from("users")
+          .select("id,full_name,email")
+          .eq("id", userId)
+          .maybeSingle()
+
+        if (error) throw error
+
+        setFullName(String((data as any)?.full_name ?? ""))
+        setEmail(String((data as any)?.email ?? ""))
+        setUserLoading(false)
+      } catch (e: any) {
+        setFullName("")
+        setEmail("")
+        setUserError(e?.message || "Failed to load user.")
+        setUserLoading(false)
+      }
     }
 
     loadUser()
@@ -56,27 +73,35 @@ export default function EditorUserGroupsPage() {
         </div>
       ) : null}
 
-      <div className="card">
-        <div style={{ fontWeight: 800, marginBottom: 6 }}>
-          Assign groups{userLabel ? ` for ${userLabel}` : ""}
-        </div>
-        <div style={{ fontSize: 13, opacity: 0.75 }}>
-          Changes apply immediately (no separate Save button).
-        </div>
-      </div>
-
       {userLoading || groupsLoading ? (
         <div style={{ padding: 12, fontSize: 13, opacity: 0.75 }}>Loading…</div>
       ) : (
-        <div className="card" style={{ padding: 12 }}>
-          <GenericTreeAssignPage
-            targetId={userId}
-            nodes={nodes}
-            mapTable="group_members"
-            mapTargetField="user_id"
-            mapNodeField="group_id"
-          />
-        </div>
+        <>
+          <div className="card">
+            <div style={{ fontWeight: 800, marginBottom: 10 }}>Profile</div>
+
+            <label>Email (read-only):</label>
+            <input value={email || userId} disabled style={{ marginBottom: 12, opacity: 0.85 }} />
+
+            <label>Name (read-only):</label>
+            <input value={fullName} disabled style={{ opacity: 0.85 }} placeholder="—" />
+          </div>
+
+          <div className="card">
+            <div style={{ fontWeight: 800, marginBottom: 6 }}>Groups</div>
+            <div style={{ fontSize: 13, opacity: 0.75, marginBottom: 10 }}>
+              Toggle groups in the tree below. Changes apply immediately.
+            </div>
+
+            <GenericTreeAssignPage
+              targetId={userId}
+              nodes={nodes}
+              mapTable="group_members"
+              mapTargetField="user_id"
+              mapNodeField="group_id"
+            />
+          </div>
+        </>
       )}
     </div>
   )

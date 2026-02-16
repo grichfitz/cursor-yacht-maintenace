@@ -6,8 +6,6 @@ export default function NewYachtPage() {
   const navigate = useNavigate()
 
   const [name, setName] = useState("")
-  const [makeModel, setMakeModel] = useState("")
-  const [location, setLocation] = useState("")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -81,20 +79,6 @@ export default function NewYachtPage() {
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}
-        style={{ marginBottom: 12 }}
-      />
-
-      <label>Make / Model:</label>
-      <input
-        value={makeModel}
-        onChange={(e) => setMakeModel(e.target.value)}
-        style={{ marginBottom: 12 }}
-      />
-
-      <label>Location:</label>
-      <input
-        value={location}
-        onChange={(e) => setLocation(e.target.value)}
         style={{ marginBottom: 12 }}
       />
 

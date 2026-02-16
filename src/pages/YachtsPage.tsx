@@ -6,6 +6,8 @@ import { useSession } from "../auth/SessionProvider"
 import TreeDisplay, { type TreeNode } from "../components/TreeDisplay"
 import { Folder, Ship } from "lucide-react"
 import { pickBadgeVariant } from "../ui/badgeColors"
+import { useMyRole } from "../hooks/useMyRole"
+import { loadManagerScopeGroupIds } from "../utils/groupScope"
 
 type YachtRow = {
   id: string
@@ -22,6 +24,7 @@ type GroupRow = {
 export default function YachtsPage() {
   const navigate = useNavigate()
   const { session } = useSession()
+  const { role } = useMyRole()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [yachts, setYachts] = useState<YachtRow[]>([])
@@ -48,21 +51,37 @@ export default function YachtsPage() {
         return
       }
 
+      const scopeGroupIds = role === "manager"
+        ? await loadManagerScopeGroupIds(user.id)
+        : null
+
+      if (role === "manager" && scopeGroupIds && scopeGroupIds.length === 0) {
+        setYachts([])
+        setGroups([])
+        setLoading(false)
+        return
+      }
+
       const loadGroups = async () => {
-        const { data: g, error: gErr } = await supabase
-          .from("groups")
-          .select("id,name")
-          .order("name")
+        let q = supabase.from("groups").select("id,name").order("name")
+        if (role === "manager" && scopeGroupIds && scopeGroupIds.length > 0) {
+          q = q.in("id", scopeGroupIds)
+        }
+        const { data: g, error: gErr } = await q
         if (gErr) throw gErr
         return (g as GroupRow[]) ?? []
       }
 
-      // YM v2 finalization: rely on RLS for data scoping (no frontend role-based filtering).
+      let yachtsQuery = supabase
+        .from("yachts")
+        .select("id,name,group_id,archived_at")
+        .order("name")
+      if (role === "manager" && scopeGroupIds && scopeGroupIds.length > 0) {
+        yachtsQuery = yachtsQuery.in("group_id", scopeGroupIds)
+      }
+
       const [{ data, error: loadErr }, groupsList] = await Promise.all([
-        supabase
-          .from("yachts")
-          .select("id,name,group_id,archived_at")
-          .order("name"),
+        yachtsQuery,
         loadGroups(),
       ])
 
@@ -80,7 +99,7 @@ export default function YachtsPage() {
     } finally {
       window.clearTimeout(timeoutId)
     }
-  }, [])
+  }, [role])
 
   useEffect(() => {
     if (!session) return
@@ -102,7 +121,7 @@ export default function YachtsPage() {
       cancelled = true
       sub.data.subscription.unsubscribe()
     }
-  }, [session])
+  }, [session, role])
 
   useFocusReload(() => {
     void load()

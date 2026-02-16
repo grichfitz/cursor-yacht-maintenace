@@ -13,6 +13,7 @@ type TaskRow = {
   title: string
   category_id: string | null
   template_id: string | null
+  assigned_to?: string | null
 }
 
 export default function TasksPage() {
@@ -52,19 +53,19 @@ export default function TasksPage() {
       }
 
       const yachtIds = await loadAccessibleYachtIds(user.id)
-      if (yachtIds.length === 0) {
-        setTasks([])
-        setYachtNameById(new Map())
-        setLoading(false)
-        return
-      }
 
-      const { data: rows, error: tErr } = await supabase
+      const base = supabase
         .from("tasks")
-        .select("id,title,status,yacht_id,category_id,due_date,template_id")
-        .in("yacht_id", yachtIds)
+        .select("id,title,status,yacht_id,category_id,due_date,template_id,assigned_to")
         .order("due_date", { ascending: true, nullsFirst: false })
         .limit(500)
+
+      const q =
+        yachtIds.length === 0
+          ? base.eq("assigned_to", user.id)
+          : base.or(`yacht_id.in.(${yachtIds.join(",")}),assigned_to.eq.${user.id}`)
+
+      const { data: rows, error: tErr } = await q
 
       if (tErr) {
         setError(tErr.message)
@@ -127,7 +128,7 @@ export default function TasksPage() {
   return (
     <div className="screen">
       <div className="screen-title">Tasks</div>
-      <div className="screen-subtitle">Tasks visible to your groups.</div>
+      <div className="screen-subtitle">Tasks assigned to you, or visible to your groups.</div>
 
       {error && (
         <div style={{ color: "var(--accent-red)", marginBottom: 10, fontSize: 13 }}>

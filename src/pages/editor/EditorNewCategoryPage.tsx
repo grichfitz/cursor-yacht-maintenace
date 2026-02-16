@@ -2,19 +2,28 @@ import React, { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 import EditorNav from "./EditorNav"
+import { useSession } from "../../auth/SessionProvider"
+import { useMyRole } from "../../hooks/useMyRole"
+import { loadManagerScopeGroupIds } from "../../utils/groupScope"
+import { buildGroupParentSelectOptions, type GroupTreeRow } from "../../utils/groupTreeUi"
 
 type CategoryRow = { id: string; name: string; parent_category_id: string | null }
 
 export default function EditorNewCategoryPage() {
   const navigate = useNavigate()
+  const { session } = useSession()
+  const { role, loading: roleLoading } = useMyRole()
 
   const [loading, setLoading] = useState(true)
   const [name, setName] = useState("")
   const [parentId, setParentId] = useState<string>("")
+  const [groupId, setGroupId] = useState<string>("")
   const [categories, setCategories] = useState<CategoryRow[]>([])
+  const [groups, setGroups] = useState<GroupTreeRow[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [supportsParent, setSupportsParent] = useState(true)
+  const [supportsGroup, setSupportsGroup] = useState(true)
   const [notice, setNotice] = useState<string | null>(null)
 
   const categoryById = useMemo(() => {
@@ -75,54 +84,69 @@ export default function EditorNewCategoryPage() {
     return parts.join(" › ")
   }
 
+  const groupOptions = useMemo(() => buildGroupParentSelectOptions(groups), [groups])
+
   useEffect(() => {
+    if (!session) return
     let cancelled = false
     const load = async () => {
       setLoading(true)
       setError(null)
       setNotice(null)
-      const { data, error: loadErr } = await supabase
-        .from("categories")
-        .select("id,name,parent_category_id")
-        .order("name")
-      if (cancelled) return
-      if (loadErr) {
-        const msg = String(loadErr.message || "")
-        const missingParentCol = msg.includes("parent_category_id") && msg.toLowerCase().includes("does not exist")
-        if (!missingParentCol) {
-          setError(loadErr.message)
-          setCategories([])
-          setLoading(false)
-          return
-        }
 
-        const { data: flat, error: flatErr } = await supabase.from("categories").select("id,name").order("name")
+      try {
+        const scopeIds = role === "manager" ? await loadManagerScopeGroupIds(session.user.id) : null
+
+        const groupQuery =
+          scopeIds && scopeIds.length > 0
+            ? supabase.from("groups").select("id,name,parent_group_id").in("id", scopeIds).order("name")
+            : supabase.from("groups").select("id,name,parent_group_id").order("name")
+
+        const [{ data: catData, error: loadErr }, { data: groupData, error: gErr }] = await Promise.all([
+          supabase.from("categories").select("id,name,parent_category_id").order("name"),
+          groupQuery,
+        ])
+
         if (cancelled) return
-        if (flatErr) {
-          setError(flatErr.message)
-          setCategories([])
+        if (gErr) throw gErr
+        setGroups((groupData as GroupTreeRow[]) ?? [])
+
+        if (loadErr) {
+          const msg = String(loadErr.message || "")
+          const missingParentCol = msg.includes("parent_category_id") && msg.toLowerCase().includes("does not exist")
+          if (!missingParentCol) throw loadErr
+
+          const { data: flat, error: flatErr } = await supabase.from("categories").select("id,name").order("name")
+          if (cancelled) return
+          if (flatErr) throw flatErr
+
+          setSupportsParent(false)
+          setCategories((((flat as any[]) ?? []) as Array<{ id: string; name: string }>).map((c) => ({
+            id: c.id,
+            name: c.name,
+            parent_category_id: null,
+          })))
+          setNotice("Nested categories are not enabled yet. Apply `migration_phase1c_categories_hierarchy.sql` in Supabase to pick a parent.")
           setLoading(false)
           return
         }
 
-        setSupportsParent(false)
-        setCategories((((flat as any[]) ?? []) as Array<{ id: string; name: string }>).map((c) => ({
-          id: c.id,
-          name: c.name,
-          parent_category_id: null,
-        })))
-        setNotice("Nested categories are not enabled yet. Apply `migration_phase1c_categories_hierarchy.sql` in Supabase to pick a parent.")
+        setCategories((catData as CategoryRow[]) ?? [])
         setLoading(false)
-        return
+      } catch (e: any) {
+        if (cancelled) return
+        setError(e?.message || "Failed to load categories.")
+        setCategories([])
+        setGroups([])
+        setLoading(false)
       }
-      setCategories((data as CategoryRow[]) ?? [])
-      setLoading(false)
+      if (cancelled) return
     }
     load()
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [session, role])
 
   const create = async () => {
     setError(null)
@@ -131,13 +155,31 @@ export default function EditorNewCategoryPage() {
       setError("Category name is required.")
       return
     }
+    if (supportsGroup && !groupId) {
+      setError("Group is required.")
+      return
+    }
 
     setSaving(true)
-    const payload = supportsParent ? { name: trimmed, parent_category_id: parentId || null } : { name: trimmed }
-    const { error: insErr } = await supabase.from("categories").insert(payload)
+    const payloadBase = supportsParent ? { name: trimmed, parent_category_id: parentId || null } : { name: trimmed }
+    const payload = supportsGroup ? { ...payloadBase, group_id: groupId } : payloadBase
+    const { error: insErr } = await supabase.from("categories").insert(payload as any)
     setSaving(false)
 
     if (insErr) {
+      const msg = String(insErr.message || "")
+      const isRls = msg.toLowerCase().includes("row-level security") || msg.toLowerCase().includes("violates row level security")
+      const missingGroupCol = msg.includes("group_id") && msg.toLowerCase().includes("does not exist")
+      if (missingGroupCol) {
+        // Backward compat: categories without group scoping.
+        setSupportsGroup(false)
+        setNotice("Category groups are not enabled in this database yet (missing `categories.group_id`).")
+      }
+      if (isRls) {
+        setNotice(
+          "Supabase RLS is blocking category creation. Apply `docs/v2/migration_categories_rls_admin_manager.sql` in Supabase (SQL Editor) to allow admin/manager inserts."
+        )
+      }
       setError(insErr.message)
       return
     }
@@ -145,13 +187,13 @@ export default function EditorNewCategoryPage() {
     navigate("/editor/categories", { replace: true })
   }
 
-  if (loading) return <div className="screen">Loading…</div>
+  if (loading || roleLoading) return <div className="screen">Loading…</div>
 
   return (
     <div className="screen">
       <EditorNav />
       <div className="screen-title">Create category</div>
-      <div className="screen-subtitle">Admin-only.</div>
+      <div className="screen-subtitle">Admin or manager.</div>
 
       {error && <div style={{ color: "var(--accent-red)", marginBottom: 12, fontSize: 13 }}>{error}</div>}
       {notice && !error ? (
@@ -159,6 +201,20 @@ export default function EditorNewCategoryPage() {
       ) : null}
 
       <div className="card">
+        {supportsGroup ? (
+          <>
+            <label>Group:</label>
+            <select value={groupId} onChange={(e) => setGroupId(e.target.value)} style={{ marginBottom: 12 }} disabled={saving}>
+              <option value="">Select group…</option>
+              {groupOptions.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </>
+        ) : null}
+
         <label>Name:</label>
         <input value={name} onChange={(e) => setName(e.target.value)} style={{ marginBottom: 12 }} disabled={saving} />
 

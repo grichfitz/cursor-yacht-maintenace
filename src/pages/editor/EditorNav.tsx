@@ -1,6 +1,7 @@
 import React, { useMemo } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import { CheckSquare, Folder, Ship, Tag, User } from "lucide-react"
+import { useMyRole } from "../../hooks/useMyRole"
 
 type Section = { label: string; to: string; match: (pathname: string) => boolean }
 
@@ -15,10 +16,23 @@ const sections: Section[] = [
 export default function EditorNav() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
+  const { role } = useMyRole()
+
+  const visibleSections = useMemo(() => {
+    // Keep nav aligned with route guards:
+    // - admin: full editor
+    // - manager: groups + tasks + categories
+    // - crew: no editor nav (shouldn't reach here, but keep safe)
+    if (role === "admin") return sections
+    if (role === "manager") return sections.filter((s) => s.to === "/editor/groups" || s.to === "/editor/tasks" || s.to === "/editor/categories")
+    return []
+  }, [role])
 
   const sectionTo = useMemo(() => {
-    return sections.find((s) => s.match(pathname))?.to ?? "/editor/yachts"
-  }, [pathname])
+    const match = visibleSections.find((s) => s.match(pathname))?.to
+    if (match) return match
+    return visibleSections[0]?.to ?? "/dashboard"
+  }, [pathname, visibleSections])
 
   return (
     <div
@@ -36,6 +50,7 @@ export default function EditorNav() {
       </button>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {role === "admin" ? (
         <button
           type="button"
           className="primary-button"
@@ -54,7 +69,9 @@ export default function EditorNav() {
         >
           <Ship size={18} />
         </button>
+        ) : null}
 
+        {role === "admin" || role === "manager" ? (
         <button
           type="button"
           className="primary-button"
@@ -73,8 +90,10 @@ export default function EditorNav() {
         >
           <Folder size={18} />
         </button>
+        ) : null}
 
-        <button
+        {role === "admin" || role === "manager" ? (
+          <button
           type="button"
           className="primary-button"
           aria-label="Editor · Categories"
@@ -92,8 +111,10 @@ export default function EditorNav() {
         >
           <Tag size={18} />
         </button>
+        ) : null}
 
-        <button
+        {role === "admin" || role === "manager" ? (
+          <button
           type="button"
           className="primary-button"
           aria-label="Editor · Tasks"
@@ -111,8 +132,10 @@ export default function EditorNav() {
         >
           <CheckSquare size={18} />
         </button>
+        ) : null}
 
-        <button
+        {role === "admin" ? (
+          <button
           type="button"
           className="primary-button"
           aria-label="Editor · Users"
@@ -130,6 +153,7 @@ export default function EditorNav() {
         >
           <User size={18} />
         </button>
+        ) : null}
       </div>
     </div>
   )

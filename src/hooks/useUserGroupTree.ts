@@ -17,8 +17,9 @@ type GroupRow = {
 
 type UserRow = {
   id: string
-  display_name: string | null
+  full_name: string | null
   email: string | null
+  archived_at?: string | null
 }
 
 type UserGroupLinkRow = {
@@ -95,16 +96,81 @@ export function useUserGroupTree() {
 
       const groupNodes: TreeNode[] = groupList.map((g) => ({
         id: g.id,
-        parentId: null,
+        parentId: g.parent_group_id && groupIdSet.has(g.parent_group_id) ? g.parent_group_id : null,
         label: g.name,
         nodeType: "group",
         meta: g,
       }))
 
-      /* ---------- 5. Combine ---------- */
+      /* ---------- 5. Load users ---------- */
 
-      // No user directory table, so we only render group nodes here.
-      setNodes(groupNodes)
+      const { data: users, error: userErr } = await supabase
+        .from("users")
+        .select("id,full_name,email,archived_at")
+        .order("full_name", { ascending: true })
+        .limit(5000)
+
+      if (cancelled) return
+
+      if (userErr) {
+        setError(userErr.message)
+        setLoading(false)
+        return
+      }
+
+      const userList = (((users as any[]) ?? []) as UserRow[]).filter((u) => !u.archived_at)
+
+      const userById = new Map<string, UserRow>()
+      userList.forEach((u) => userById.set(u.id, u))
+
+      const groupIdsByUserId = new Map<string, string[]>()
+      for (const l of activeLinksUnique) {
+        if (!userById.has(l.user_id)) continue
+        const arr = groupIdsByUserId.get(l.user_id) ?? []
+        arr.push(l.group_id)
+        groupIdsByUserId.set(l.user_id, arr)
+      }
+
+      const hasUnassignedUsers = userList.some((u) => (groupIdsByUserId.get(u.id) ?? []).length === 0)
+
+      const unassignedNode: TreeNode | null = hasUnassignedUsers
+        ? {
+            id: UNASSIGNED_GROUP_ID,
+            parentId: null,
+            label: "Unassigned users",
+            nodeType: "group",
+            meta: { isVirtual: true },
+          }
+        : null
+
+      // User nodes: unique ID per (user, group) to avoid collisions when a user is in multiple groups.
+      const userNodes: TreeNode[] = []
+      for (const u of userList) {
+        const groupsForUser = groupIdsByUserId.get(u.id) ?? []
+        if (groupsForUser.length === 0) {
+          userNodes.push({
+            id: `u:${u.id}:${UNASSIGNED_GROUP_ID}`,
+            parentId: UNASSIGNED_GROUP_ID,
+            label: u.full_name || u.email || u.id,
+            nodeType: "user",
+            meta: { user_id: u.id, ...u },
+          })
+          continue
+        }
+        for (const gid of groupsForUser) {
+          userNodes.push({
+            id: `u:${u.id}:${gid}`,
+            parentId: gid,
+            label: u.full_name || u.email || u.id,
+            nodeType: "user",
+            meta: { user_id: u.id, ...u },
+          })
+        }
+      }
+
+      /* ---------- 6. Combine ---------- */
+
+      setNodes([...(unassignedNode ? [unassignedNode] : []), ...groupNodes, ...userNodes])
       setLoading(false)
       } finally {
         window.clearTimeout(timeoutId)

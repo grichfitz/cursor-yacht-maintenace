@@ -57,7 +57,8 @@ export default function UsersApp() {
           }}
           onSelect={(node) => {
             if (node.nodeType === "user") {
-              navigate(`/users/${node.id}`)
+              const userId = String(node.meta?.user_id ?? node.id)
+              navigate(`/users/${userId}`)
             }
           }}
         />

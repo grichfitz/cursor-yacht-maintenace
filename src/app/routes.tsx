@@ -25,9 +25,22 @@ import EditorEditGroupPage from "../pages/editor/EditorEditGroupPage"
 import EditorEditCategoryPage from "../pages/editor/EditorEditCategoryPage"
 import EditorEditTaskPage from "../pages/editor/EditorEditTaskPage"
 import TasksApp from "./TasksApp"
+import { useMyRole } from "../hooks/useMyRole"
 
 function EditorRoute({ children }: { children: React.ReactNode }) {
   return <RequireRole allow={["admin"]}>{children}</RequireRole>
+}
+
+function EditorRouteAdminOrManager({ children }: { children: React.ReactNode }) {
+  return <RequireRole allow={["admin", "manager"]}>{children}</RequireRole>
+}
+
+function EditorHomeRedirect() {
+  const { role, loading } = useMyRole()
+  if (loading) return <div className="screen">Loading…</div>
+  if (role === "admin") return <Navigate to="/editor/yachts" replace />
+  if (role === "manager") return <Navigate to="/editor/groups" replace />
+  return <Navigate to="/dashboard" replace />
 }
 
 function ReportsRoute() {
@@ -97,7 +110,7 @@ export default function AppRoutes() {
       />
 
       {/* Admin-only Editor */}
-      <Route path="/editor" element={<Navigate to="/editor/yachts" replace />} />
+      <Route path="/editor" element={<EditorHomeRedirect />} />
       <Route
         path="/editor/yachts/new"
         element={
@@ -125,49 +138,49 @@ export default function AppRoutes() {
       <Route
         path="/editor/groups/new"
         element={
-          <EditorRoute>
+          <EditorRouteAdminOrManager>
             <EditorNewGroupPage />
-          </EditorRoute>
+          </EditorRouteAdminOrManager>
         }
       />
       <Route
         path="/editor/groups/:groupId"
         element={
-          <EditorRoute>
+          <EditorRouteAdminOrManager>
             <EditorEditGroupPage />
-          </EditorRoute>
+          </EditorRouteAdminOrManager>
         }
       />
       <Route
         path="/editor/groups"
         element={
-          <EditorRoute>
+          <EditorRouteAdminOrManager>
             <EditorGroupsPage />
-          </EditorRoute>
+          </EditorRouteAdminOrManager>
         }
       />
       <Route
         path="/editor/categories/new"
         element={
-          <EditorRoute>
+          <EditorRouteAdminOrManager>
             <EditorNewCategoryPage />
-          </EditorRoute>
+          </EditorRouteAdminOrManager>
         }
       />
       <Route
         path="/editor/categories/:categoryId"
         element={
-          <EditorRoute>
+          <EditorRouteAdminOrManager>
             <EditorEditCategoryPage />
-          </EditorRoute>
+          </EditorRouteAdminOrManager>
         }
       />
       <Route
         path="/editor/categories"
         element={
-          <EditorRoute>
+          <EditorRouteAdminOrManager>
             <EditorCategoriesPage />
-          </EditorRoute>
+          </EditorRouteAdminOrManager>
         }
       />
 
@@ -175,25 +188,25 @@ export default function AppRoutes() {
       <Route
         path="/editor/tasks"
         element={
-          <EditorRoute>
+          <EditorRouteAdminOrManager>
             <TasksApp />
-          </EditorRoute>
+          </EditorRouteAdminOrManager>
         }
       />
       <Route
         path="/editor/tasks/new"
         element={
-          <EditorRoute>
+          <EditorRouteAdminOrManager>
             <NewTaskPage />
-          </EditorRoute>
+          </EditorRouteAdminOrManager>
         }
       />
       <Route
         path="/editor/tasks/:taskId"
         element={
-          <EditorRoute>
+          <EditorRouteAdminOrManager>
             <EditorEditTaskPage />
-          </EditorRoute>
+          </EditorRouteAdminOrManager>
         }
       />
       <Route path="/editor/task-templates" element={<Navigate to="/editor/yachts" replace />} />

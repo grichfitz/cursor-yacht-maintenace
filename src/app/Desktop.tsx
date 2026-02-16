@@ -51,12 +51,12 @@ export default function Desktop() {
       });
     }
 
-    if (role === "admin") {
+    if (role === "admin" || role === "manager") {
       base.push({
         id: "editor",
         name: "Editor",
         icon: <Wrench size={28} />,
-        route: "/editor/yachts",
+        route: "/editor",
       });
     }
 

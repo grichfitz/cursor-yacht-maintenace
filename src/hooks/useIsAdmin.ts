@@ -34,25 +34,45 @@ export function useIsAdmin() {
         return
       }
 
-      const { data, error } = await supabase
-        .from("user_role_links")
-        .select("roles(name)")
+      // Fallback: use user_roles + roles (avoid legacy/nonexistent user_role_links table).
+      const { data: ur, error: urErr } = await supabase
+        .from("user_roles")
+        .select("role_id")
         .eq("user_id", user.id)
+        .maybeSingle()
 
-      if (!cancelled) {
-        if (error) {
-          setIsAdmin(false)
-          setLoading(false)
-          return
-        }
+      if (cancelled) return
 
-        const admin =
-          (data as any[])?.some(
-            (r: any) => r?.roles?.name?.toLowerCase() === "admin"
-          ) ?? false
-        setIsAdmin(admin)
+      if (urErr) {
+        setIsAdmin(false)
         setLoading(false)
+        return
       }
+
+      const roleId = (ur as any)?.role_id ? String((ur as any).role_id) : ""
+      if (!roleId) {
+        setIsAdmin(false)
+        setLoading(false)
+        return
+      }
+
+      const { data: roleRow, error: rErr } = await supabase
+        .from("roles")
+        .select("name")
+        .eq("id", roleId)
+        .maybeSingle()
+
+      if (cancelled) return
+
+      if (rErr) {
+        setIsAdmin(false)
+        setLoading(false)
+        return
+      }
+
+      const name = String((roleRow as any)?.name ?? "").toLowerCase()
+      setIsAdmin(name === "admin")
+      setLoading(false)
     }
 
     load()

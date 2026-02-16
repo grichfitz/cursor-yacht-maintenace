@@ -18,8 +18,6 @@ export default function EditorNewYachtPage() {
 
   const [name, setName] = useState("")
   const [groupId, setGroupId] = useState("")
-  const [makeModel, setMakeModel] = useState("")
-  const [location, setLocation] = useState("")
 
   const orderedGroups = useMemo(() => [...groups].sort((a, b) => a.name.localeCompare(b.name)), [groups])
 
@@ -101,12 +99,6 @@ export default function EditorNewYachtPage() {
             </option>
           ))}
         </select>
-
-        <label>Make / Model:</label>
-        <input value={makeModel} onChange={(e) => setMakeModel(e.target.value)} style={{ marginBottom: 12 }} disabled={saving} />
-
-        <label>Location:</label>
-        <input value={location} onChange={(e) => setLocation(e.target.value)} style={{ marginBottom: 12 }} disabled={saving} />
 
         <button type="button" className="cta-button" onClick={create} disabled={saving}>
           {saving ? "Creating…" : "Create"}

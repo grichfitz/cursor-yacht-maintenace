@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom"
 import { supabase } from "../lib/supabase"
 import { useSession } from "../auth/SessionProvider"
 import { loadAccessibleYachtIds } from "../utils/taskAccess"
+import { useMyRole } from "../hooks/useMyRole"
 
 type YachtRow = {
   id: string
@@ -51,6 +52,7 @@ export default function YachtPage() {
   const { yachtId } = useParams<{ yachtId: string }>()
   const navigate = useNavigate()
   const { session } = useSession()
+  const { role } = useMyRole()
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -162,11 +164,6 @@ export default function YachtPage() {
     )
   }
 
-  const yachtPhotoUrl: string | null = null
-  const yachtMakeModel: string | null = null
-  const yachtLocation: string | null = null
-  const yachtEngineerHours: number | null = null
-
   return (
     <div className="screen">
       <div
@@ -181,13 +178,16 @@ export default function YachtPage() {
           ← Back
         </button>
 
-        <button
-          type="button"
-          className="primary-button"
-          onClick={() => navigate("/tasks")}
-        >
-          Tasks
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button type="button" className="primary-button" onClick={() => navigate("/tasks")}>
+            Tasks
+          </button>
+          {role === "admin" || role === "manager" ? (
+            <button type="button" className="primary-button" onClick={() => navigate(`/editor/tasks/new?yachtId=${yachtId}`)}>
+              + Task
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <hr />
@@ -196,40 +196,6 @@ export default function YachtPage() {
         {yacht.name}
       </div>
       <div className="screen-subtitle">Operational tasks for this yacht.</div>
-
-      <div className="card" style={{ paddingBottom: 12 }}>
-        <div style={{ fontWeight: 800, marginBottom: 8 }}>Yacht info</div>
-        {yachtPhotoUrl ? (
-          <img
-            src={yachtPhotoUrl}
-            alt=""
-            style={{
-              width: "100%",
-              height: 160,
-              objectFit: "cover",
-              borderRadius: 14,
-              border: "1px solid var(--border-subtle)",
-              marginBottom: 10,
-            }}
-          />
-        ) : null}
-        <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-          <div>
-            <strong style={{ color: "var(--text-primary)" }}>Make / model:</strong>{" "}
-            {yachtMakeModel || "—"}
-          </div>
-          <div>
-            <strong style={{ color: "var(--text-primary)" }}>Location:</strong>{" "}
-            {yachtLocation || "—"}
-          </div>
-          {typeof yachtEngineerHours === "number" ? (
-            <div>
-              <strong style={{ color: "var(--text-primary)" }}>Engineer hours:</strong>{" "}
-              {yachtEngineerHours}
-            </div>
-          ) : null}
-        </div>
-      </div>
 
       {error && (
         <div style={{ color: "var(--accent-red)", marginBottom: 10, fontSize: 13 }}>
