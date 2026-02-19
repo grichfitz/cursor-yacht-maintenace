@@ -1,0 +1,376 @@
+proname,pg_get_functiondef
+is_admin,"CREATE OR REPLACE FUNCTION public.is_admin()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'auth'
+AS $function$
+select exists (
+select 1
+from public.user_roles ur
+join public.roles r on r.id = ur.role_id
+where ur.user_id = auth.uid()
+and r.name = 'admin'
+);
+$function$
+"
+current_user_role,"CREATE OR REPLACE FUNCTION public.current_user_role()
+ RETURNS text
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'auth'
+AS $function$
+select r.name
+from public.user_roles ur
+join public.roles r on r.id = ur.role_id
+where ur.user_id = auth.uid()
+limit 1;
+$function$
+"
+user_yacht_ids,"CREATE OR REPLACE FUNCTION public.user_yacht_ids()
+ RETURNS SETOF uuid
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'auth'
+AS $function$
+declare
+role_name text;
+begin
+if public.is_admin() then
+return query
+select y.id
+from public.yachts y;
+return;
+end if;
+role_name := public.current_user_role();
+if role_name in ('manager', 'crew') then
+return query
+select y.id
+from public.yachts y
+where y.group_id in (select public.user_group_ids());
+elsif role_name = 'owner' then
+return query
+select yo.yacht_id
+from public.yacht_owners yo
+where yo.user_id = auth.uid();
+else
+return;
+end if;
+end;
+$function$
+"
+assign_global_template_to_group,"CREATE OR REPLACE FUNCTION public.assign_global_template_to_group(p_global_template_id uuid, p_group_id uuid)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'auth'
+AS $function$
+declare
+v_new_group_template_id uuid;
+v_role text;
+v_gt public.global_templates%rowtype;
+begin
+v_role := public.current_user_role();
+if not (
+public.is_admin()
+or (
+v_role = 'manager'
+and p_group_id in (select public.user_group_ids())
+)
+) then
+raise exception 'not authorized';
+end if;
+if exists (
+select 1
+from public.group_templates gt
+where gt.group_id = p_group_id
+and gt.origin_global_template_id = p_global_template_id
+and gt.archived_at is null
+) then
+raise exception 'group_template already exists for global_template % and group %', p_global_template_id, p_group_id;
+end if;
+select *
+into v_gt
+from public.global_templates
+where id = p_global_template_id;
+if not found then
+raise exception 'global_template not found: %', p_global_template_id;
+end if;
+insert into public.group_templates (
+group_id,
+origin_global_template_id,
+title,
+description,
+interval_days,
+checklist_json,
+active
+)
+values (
+p_group_id,
+p_global_template_id,
+v_gt.title,
+v_gt.description,
+v_gt.interval_days,
+v_gt.checklist_json,
+true
+)
+returning id into v_new_group_template_id;
+insert into public.yacht_tasks (
+yacht_id,
+group_template_id,
+title,
+description,
+interval_days,
+checklist_json,
+due_date,
+status
+)
+select
+y.id,
+v_new_group_template_id,
+gt.title,
+gt.description,
+gt.interval_days,
+gt.checklist_json,
+now(),
+'open'
+from public.yachts y
+join public.group_templates gt
+on gt.id = v_new_group_template_id
+where y.group_id = p_group_id
+on conflict do nothing;
+return v_new_group_template_id;
+end;
+$function$
+"
+complete_yacht_task,"CREATE OR REPLACE FUNCTION public.complete_yacht_task(p_task_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'auth'
+AS $function$
+declare
+v_task public.yacht_tasks%rowtype;
+v_role text;
+begin
+select *
+into v_task
+from public.yacht_tasks
+where id = p_task_id
+for update;
+if not found then
+raise exception 'task not found: %', p_task_id;
+end if;
+v_role := public.current_user_role();
+if not (
+public.is_admin()
+or (
+v_role in ('manager','crew')
+and v_task.yacht_id in (select public.user_yacht_ids())
+)
+) then
+raise exception 'not authorized';
+end if;
+if v_task.status <> 'open' then
+raise exception 'invalid state: expected open, got %', v_task.status;
+end if;
+update public.yacht_tasks
+set
+status = 'pending_review',
+completed_at = now(),
+completed_by = auth.uid()
+where id = p_task_id;
+end;
+$function$
+"
+user_group_ids,"CREATE OR REPLACE FUNCTION public.user_group_ids()
+ RETURNS SETOF uuid
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'auth'
+AS $function$
+declare
+begin
+  if public.is_admin() then
+    return query
+    select g.id
+    from public.groups g;
+    return;
+  end if;
+
+  return query
+  with recursive group_tree as (
+    select g.id
+    from public.groups g
+    join public.group_memberships gm
+      on gm.group_id = g.id
+    where gm.user_id = auth.uid()
+
+    union all
+
+    select child.id
+    from public.groups child
+    join group_tree gt
+      on child.parent_group_id = gt.id
+  )
+  select id from group_tree;
+end;
+$function$
+"
+approve_yacht_task,"CREATE OR REPLACE FUNCTION public.approve_yacht_task(p_task_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'auth'
+AS $function$
+declare
+v_task public.yacht_tasks%rowtype;
+v_role text;
+begin
+select *
+into v_task
+from public.yacht_tasks
+where id = p_task_id
+for update;
+if not found then
+raise exception 'task not found: %', p_task_id;
+end if;
+v_role := public.current_user_role();
+if not (
+public.is_admin()
+or (
+v_role = 'manager'
+and v_task.yacht_id in (select public.user_yacht_ids())
+)
+) then
+raise exception 'not authorized';
+end if;
+if v_task.status <> 'pending_review' then
+raise exception 'invalid state: expected pending_review, got %', v_task.status;
+end if;
+update public.yacht_tasks
+set
+status = 'approved',
+approved_at = now(),
+approved_by = auth.uid()
+where id = p_task_id;
+if v_task.interval_days is not null then
+if v_task.completed_at is null then
+raise exception 'invalid state: completed_at is null for task %', p_task_id;
+end if;
+insert into public.yacht_tasks (
+yacht_id,
+group_template_id,
+origin_global_template_id,
+title,
+description,
+interval_days,
+checklist_json,
+due_date,
+status
+)
+values (
+v_task.yacht_id,
+v_task.group_template_id,
+v_task.origin_global_template_id,
+v_task.title,
+v_task.description,
+v_task.interval_days,
+v_task.checklist_json,
+v_task.completed_at + (v_task.interval_days * interval '1 day'),
+'open'
+)
+on conflict do nothing;
+end if;
+end;
+$function$
+"
+assign_category_to_yacht,"CREATE OR REPLACE FUNCTION public.assign_category_to_yacht(p_category_id uuid, p_yacht_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'auth'
+AS $function$
+declare
+v_role text;
+begin
+v_role := public.current_user_role();
+if not (
+public.is_admin()
+or (
+v_role = 'manager'
+and p_yacht_id in (select public.user_yacht_ids())
+)
+) then
+raise exception 'not authorized';
+end if;
+insert into public.yacht_tasks (
+yacht_id,
+group_template_id,
+origin_global_template_id,
+title,
+description,
+interval_days,
+checklist_json,
+due_date,
+status
+)
+select
+p_yacht_id,
+null,
+gt.id,
+gt.title,
+gt.description,
+gt.interval_days,
+gt.checklist_json,
+now(),
+'open'
+from public.global_templates gt
+join public.category_templates ct
+on ct.global_template_id = gt.id
+where ct.category_id = p_category_id
+and not exists (
+select 1
+from public.yacht_tasks yt
+left join public.group_templates gpt
+on gpt.id = yt.group_template_id
+where yt.yacht_id = p_yacht_id
+and yt.deleted_at is null
+and yt.status <> 'approved'
+and (
+yt.origin_global_template_id = gt.id
+or gpt.origin_global_template_id = gt.id
+)
+)
+on conflict do nothing;
+return;
+end;
+$function$
+"
+handle_new_user,"CREATE OR REPLACE FUNCTION public.handle_new_user()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+  INSERT INTO public.users (id, email)
+  VALUES (NEW.id, NEW.email)
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$function$
+"
+current_user_is_admin_or_manager,"CREATE OR REPLACE FUNCTION public.current_user_is_admin_or_manager()
+ RETURNS boolean
+ LANGUAGE sql
+ SECURITY DEFINER
+AS $function$
+  SELECT EXISTS (
+    SELECT 1
+    FROM user_roles ur
+    JOIN roles r ON ur.role_id = r.id
+    WHERE ur.user_id = auth.uid()
+      AND r.name IN ('admin','manager')
+  );
+$function$
+"

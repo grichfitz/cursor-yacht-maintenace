@@ -4,16 +4,13 @@ import { BarChart2, CheckSquare, Ship, Wrench } from "lucide-react"
 import { supabase } from "../lib/supabase"
 import { useMyRole } from "../hooks/useMyRole"
 import { useSession } from "../auth/SessionProvider"
-import { loadAccessibleYachtIds } from "../utils/taskAccess"
 
-type TaskRow = {
+type IncidentRow = {
   id: string
   yacht_id: string
   status: string
-  due_date: string | null
-  title: string
-  category_id: string | null
-  template_id: string | null
+  due_date: string
+  assignment_id: string
 }
 
 function StatusPill({ status }: { status: string }) {
@@ -49,8 +46,10 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null)
 
   const [countsByStatus, setCountsByStatus] = useState<Array<{ status: string; count: number }>>([])
-  const [upcoming, setUpcoming] = useState<TaskRow[]>([])
-  const [overdue, setOverdue] = useState<TaskRow[]>([])
+  const [upcoming, setUpcoming] = useState<IncidentRow[]>([])
+  const [overdue, setOverdue] = useState<IncidentRow[]>([])
+  const [yachtNameById, setYachtNameById] = useState<Map<string, string>>(new Map())
+  const [assignmentNameById, setAssignmentNameById] = useState<Map<string, string>>(new Map())
 
   useEffect(() => {
     if (!session) return
@@ -65,41 +64,31 @@ export default function DashboardPage() {
       }, 1500)
 
       try {
-        const yachtIds = await loadAccessibleYachtIds(session.user.id)
-        if (yachtIds.length === 0) {
-          setCountsByStatus([])
-          setUpcoming([])
-          setOverdue([])
-          setLoading(false)
-          return
-        }
+        const today = new Date().toISOString().slice(0, 10)
 
-        const nowIso = new Date().toISOString()
+        const [countRes, overdueRes, upcomingRes] = await Promise.all([
+          supabase.from("task_incidents").select("id,status,yacht_id,assignment_id").limit(5000),
+          supabase
+            .from("task_incidents")
+            .select("id,assignment_id,status,yacht_id,due_date")
+            .lt("due_date", today)
+            .eq("status", "pending")
+            .order("due_date", { ascending: true })
+            .limit(8),
+          supabase
+            .from("task_incidents")
+            .select("id,assignment_id,status,yacht_id,due_date")
+            .gte("due_date", today)
+            .eq("status", "pending")
+            .order("due_date", { ascending: true })
+            .limit(8),
+        ])
 
-        const [{ data: countRows, error: cErr }, { data: overdueRows, error: oErr }, { data: upcomingRows, error: uErr }] =
-          await Promise.all([
-            supabase.from("tasks").select("id,status,yacht_id").in("yacht_id", yachtIds).limit(2000),
-            supabase
-              .from("tasks")
-              .select("id,title,status,yacht_id,category_id,due_date,template_id")
-              .in("yacht_id", yachtIds)
-              .lt("due_date", nowIso)
-              .order("due_date", { ascending: true })
-              .limit(8),
-            supabase
-              .from("tasks")
-              .select("id,title,status,yacht_id,category_id,due_date,template_id")
-              .in("yacht_id", yachtIds)
-              .gte("due_date", nowIso)
-              .order("due_date", { ascending: true })
-              .limit(8),
-          ])
-
-        const firstErr = cErr || oErr || uErr
+        const firstErr = countRes.error || overdueRes.error || upcomingRes.error
         if (firstErr) throw firstErr
 
         const countsMap = new Map<string, number>()
-        ;((countRows as any[]) ?? []).forEach((r) => {
+        ;(((countRes.data as any[]) ?? []) as any[]).forEach((r) => {
           const status = String(r?.status ?? "")
           if (!status) return
           countsMap.set(status, (countsMap.get(status) ?? 0) + 1)
@@ -109,10 +98,32 @@ export default function DashboardPage() {
           .map(([status, count]) => ({ status, count }))
           .sort((a, b) => b.count - a.count || a.status.localeCompare(b.status))
 
+        const overdueList = ((overdueRes.data as any[]) ?? []) as IncidentRow[]
+        const upcomingList = ((upcomingRes.data as any[]) ?? []) as IncidentRow[]
+
+        const uniqYachtIds = Array.from(new Set([...overdueList, ...upcomingList].map((i) => i.yacht_id).filter(Boolean)))
+        const uniqAssignmentIds = Array.from(new Set([...overdueList, ...upcomingList].map((i) => i.assignment_id).filter(Boolean)))
+
+        const [yRes, aRes] = await Promise.all([
+          uniqYachtIds.length ? supabase.from("yachts").select("id,name").in("id", uniqYachtIds).limit(5000) : Promise.resolve({ data: [], error: null } as any),
+          uniqAssignmentIds.length ? supabase.from("task_assignments").select("id,name").in("id", uniqAssignmentIds).limit(5000) : Promise.resolve({ data: [], error: null } as any),
+        ])
+
+        const yMap = new Map<string, string>()
+        if (!yRes.error) {
+          ;(((yRes.data as any[]) ?? []) as any[]).forEach((y) => yMap.set(String(y.id), String(y.name ?? "")))
+        }
+        const aMap = new Map<string, string>()
+        if (!aRes.error) {
+          ;(((aRes.data as any[]) ?? []) as any[]).forEach((a) => aMap.set(String(a.id), String(a.name ?? "")))
+        }
+
         if (!cancelled) {
           setCountsByStatus(sortedCounts)
-          setOverdue((overdueRows as TaskRow[]) ?? [])
-          setUpcoming((upcomingRows as TaskRow[]) ?? [])
+          setOverdue(overdueList)
+          setUpcoming(upcomingList)
+          setYachtNameById(yMap)
+          setAssignmentNameById(aMap)
           setLoading(false)
         }
       } catch (e: any) {
@@ -239,12 +250,12 @@ export default function DashboardPage() {
               key={t.id}
               type="button"
               className="list-button"
-              onClick={() => navigate(`/tasks/${t.id}`)}
+              onClick={() => navigate(`/yachts/${t.yacht_id}/tasks`)}
             >
               <div className="list-button-main">
-                <div className="list-button-title">{t.title}</div>
+                <div className="list-button-title">{assignmentNameById.get(t.assignment_id) || t.assignment_id}</div>
                 <div className="list-button-subtitle">
-                  {t.due_date ? `Due ${new Date(t.due_date).toLocaleDateString()}` : "No due date"}
+                  {`Due ${new Date(t.due_date).toLocaleDateString()}`} · {yachtNameById.get(t.yacht_id) || t.yacht_id}
                 </div>
               </div>
               <div className="list-button-chevron">›</div>
@@ -269,12 +280,12 @@ export default function DashboardPage() {
               key={t.id}
               type="button"
               className="list-button"
-              onClick={() => navigate(`/tasks/${t.id}`)}
+              onClick={() => navigate(`/yachts/${t.yacht_id}/tasks`)}
             >
               <div className="list-button-main">
-                <div className="list-button-title">{t.title}</div>
+                <div className="list-button-title">{assignmentNameById.get(t.assignment_id) || t.assignment_id}</div>
                 <div className="list-button-subtitle">
-                  {t.due_date ? `Due ${new Date(t.due_date).toLocaleDateString()}` : "No due date"}
+                  {`Due ${new Date(t.due_date).toLocaleDateString()}`} · {yachtNameById.get(t.yacht_id) || t.yacht_id}
                 </div>
               </div>
               <div className="list-button-chevron">›</div>

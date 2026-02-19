@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { supabase } from "../lib/supabase"
 import { useSession } from "../auth/SessionProvider"
-import { loadAccessibleYachtIds } from "../utils/taskAccess"
 import { useMyRole } from "../hooks/useMyRole"
 
 type YachtRow = {
@@ -12,14 +11,12 @@ type YachtRow = {
   archived_at: string | null
 }
 
-type TaskRow = {
+type IncidentRow = {
   id: string
   yacht_id: string
   status: string
-  due_date: string | null
-  title: string
-  category_id: string | null
-  template_id: string | null
+  due_date: string
+  assignment_id: string
 }
 
 function StatusPill({ status }: { status: string | null | undefined }) {
@@ -58,7 +55,8 @@ export default function YachtPage() {
   const [error, setError] = useState<string | null>(null)
 
   const [yacht, setYacht] = useState<YachtRow | null>(null)
-  const [tasks, setTasks] = useState<TaskRow[]>([])
+  const [incidents, setIncidents] = useState<IncidentRow[]>([])
+  const [assignmentNameById, setAssignmentNameById] = useState<Map<string, string>>(new Map())
 
   const load = useCallback(async () => {
     if (!yachtId) return
@@ -73,15 +71,8 @@ export default function YachtPage() {
 
       if (!user) {
         setYacht(null)
-        setTasks([])
-        setLoading(false)
-        return
-      }
-
-      const yachtIds = await loadAccessibleYachtIds(user.id)
-      if (!yachtIds.includes(yachtId)) {
-        setYacht(null)
-        setTasks([])
+        setIncidents([])
+        setAssignmentNameById(new Map())
         setLoading(false)
         return
       }
@@ -100,28 +91,49 @@ export default function YachtPage() {
 
       if (!yachtRow) {
         setYacht(null)
-        setTasks([])
+        setIncidents([])
+        setAssignmentNameById(new Map())
         setLoading(false)
         return
       }
 
-      const { data: taskRows, error: tErr } = await supabase
-        .from("tasks")
-        .select("id,title,status,yacht_id,category_id,due_date,template_id")
+      const { data: incRows, error: iErr } = await supabase
+        .from("task_incidents")
+        .select("id,assignment_id,status,yacht_id,due_date")
         .eq("yacht_id", yachtId)
-        .order("due_date", { ascending: true, nullsFirst: false })
-        .order("created_at", { ascending: false })
+        .order("due_date", { ascending: true })
+        .limit(2000)
 
-      if (tErr) {
-        setError(tErr.message)
+      if (iErr) {
+        setError(iErr.message)
         setYacht(yachtRow as YachtRow)
-        setTasks([])
+        setIncidents([])
+        setAssignmentNameById(new Map())
         setLoading(false)
         return
       }
 
       setYacht(yachtRow as YachtRow)
-      setTasks((taskRows as TaskRow[]) ?? [])
+      const list = ((incRows as any[]) ?? []) as IncidentRow[]
+      setIncidents(list)
+
+      const assignmentIds = Array.from(new Set(list.map((i) => i.assignment_id).filter(Boolean)))
+      if (assignmentIds.length > 0) {
+        const { data: aRows, error: aErr } = await supabase
+          .from("task_assignments")
+          .select("id,name")
+          .in("id", assignmentIds)
+          .limit(5000)
+        if (!aErr) {
+          const m = new Map<string, string>()
+          ;(((aRows as any[]) ?? []) as any[]).forEach((a) => m.set(String(a.id), String(a.name ?? "")))
+          setAssignmentNameById(m)
+        } else {
+          setAssignmentNameById(new Map())
+        }
+      } else {
+        setAssignmentNameById(new Map())
+      }
       setLoading(false)
     } finally {
       window.clearTimeout(timeoutId)
@@ -179,12 +191,12 @@ export default function YachtPage() {
         </button>
 
         <div style={{ display: "flex", gap: 8 }}>
-          <button type="button" className="primary-button" onClick={() => navigate("/tasks")}>
-            Tasks
+          <button type="button" className="primary-button" onClick={() => navigate(`/yachts/${yachtId}/tasks`)}>
+            Yacht Tasks
           </button>
           {role === "admin" || role === "manager" ? (
-            <button type="button" className="primary-button" onClick={() => navigate(`/editor/tasks/new?yachtId=${yachtId}`)}>
-              + Task
+            <button type="button" className="primary-button" onClick={() => navigate(`/editor/assignments`)}>
+              Assignments
             </button>
           ) : null}
         </div>
@@ -205,30 +217,30 @@ export default function YachtPage() {
 
       <div className="card card-list">
         <div className="list-row" style={{ justifyContent: "space-between" }}>
-          <div style={{ fontWeight: 800 }}>Tasks</div>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>{tasks.length}</div>
+          <div style={{ fontWeight: 800 }}>Incidents</div>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>{incidents.length}</div>
         </div>
 
-        {tasks.length === 0 ? (
+        {incidents.length === 0 ? (
           <div style={{ padding: 12, fontSize: 13, opacity: 0.75 }}>
-            No tasks.
+            No incidents.
           </div>
         ) : (
-          tasks.map((t) => {
+          incidents.map((t) => {
             return (
               <div key={t.id} style={{ borderTop: "1px solid rgba(0,0,0,0.06)" }}>
                 <button
                   type="button"
                   className="list-button"
-                  onClick={() => navigate(`/tasks/${t.id}`)}
+                  onClick={() => navigate(`/yachts/${yachtId}/tasks`)}
                 >
                   <div className="list-button-main">
                     <div className="list-button-title" style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <span>{t.title}</span>
+                      <span>{assignmentNameById.get(t.assignment_id) || t.assignment_id}</span>
                       <StatusPill status={t.status} />
                     </div>
                     <div className="list-button-subtitle">
-                      {t.due_date ? `Due ${new Date(t.due_date).toLocaleDateString()}` : "No due date"}
+                      {`Due ${new Date(t.due_date).toLocaleDateString()}`}
                     </div>
                   </div>
                   <div className="list-button-chevron">›</div>

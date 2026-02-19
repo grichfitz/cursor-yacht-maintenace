@@ -4,28 +4,24 @@ import RequireRole from "../components/RequireRole"
 
 import DashboardPage from "../pages/DashboardPage"
 import TasksPage from "../pages/TasksPage"
-import TaskPage from "../pages/TaskPage"
 import YachtsPage from "../pages/YachtsPage"
 import YachtPage from "../pages/YachtPage"
 import ReportsPage from "../pages/ReportsPage"
 import ProfilePage from "../pages/ProfilePage"
 import UsersPage from "../pages/UsersPage"
-import NewTaskPage from "../pages/NewTaskPage"
 
 import EditorYachtsPage from "../pages/editor/EditorYachtsPage"
 import EditorGroupsPage from "../pages/editor/EditorGroupsPage"
-import EditorCategoriesPage from "../pages/editor/EditorCategoriesPage"
 import EditorUserGroupsPage from "../pages/editor/EditorUserGroupsPage"
 import EditorUserPage from "../pages/editor/EditorUserPage"
 import EditorNewYachtPage from "../pages/editor/EditorNewYachtPage"
 import EditorNewGroupPage from "../pages/editor/EditorNewGroupPage"
-import EditorNewCategoryPage from "../pages/editor/EditorNewCategoryPage"
 import EditorEditYachtPage from "../pages/editor/EditorEditYachtPage"
 import EditorEditGroupPage from "../pages/editor/EditorEditGroupPage"
-import EditorEditCategoryPage from "../pages/editor/EditorEditCategoryPage"
-import EditorEditTaskPage from "../pages/editor/EditorEditTaskPage"
-import TasksApp from "./TasksApp"
 import { useMyRole } from "../hooks/useMyRole"
+import BlueprintPage from "../v21/blueprint/BlueprintPage"
+import AssignmentPage from "../v21/assignments/AssignmentPage"
+import YachtTasksPage from "../v21/yachtTasks/YachtTasksPage"
 
 function EditorRoute({ children }: { children: React.ReactNode }) {
   return <RequireRole allow={["admin"]}>{children}</RequireRole>
@@ -38,8 +34,8 @@ function EditorRouteAdminOrManager({ children }: { children: React.ReactNode }) 
 function EditorHomeRedirect() {
   const { role, loading } = useMyRole()
   if (loading) return <div className="screen">Loading…</div>
-  if (role === "admin") return <Navigate to="/editor/yachts" replace />
-  if (role === "manager") return <Navigate to="/editor/groups" replace />
+  if (role === "admin") return <Navigate to="/editor/blueprint" replace />
+  if (role === "manager") return <Navigate to="/editor/assignments" replace />
   return <Navigate to="/dashboard" replace />
 }
 
@@ -61,19 +57,20 @@ export default function AppRoutes() {
       {/* Back-compat redirects (old app URLs) */}
       <Route path="/apps" element={<Navigate to="/dashboard" replace />} />
       <Route path="/apps/tasks" element={<Navigate to="/tasks" replace />} />
-      <Route path="/apps/tasks/new" element={<Navigate to="/editor/tasks/new" replace />} />
-      <Route path="/apps/tasks/:taskId" element={<Navigate to="/editor/tasks/:taskId" replace />} />
+      <Route path="/apps/tasks/new" element={<Navigate to="/editor/blueprint" replace />} />
+      <Route path="/apps/tasks/:taskId" element={<Navigate to="/editor/blueprint" replace />} />
       <Route path="/apps/yachts" element={<Navigate to="/yachts" replace />} />
       <Route path="/apps/reports" element={<Navigate to="/reports" replace />} />
       <Route path="/apps/groups" element={<Navigate to="/editor/groups" replace />} />
-      <Route path="/apps/categories" element={<Navigate to="/editor/categories" replace />} />
+      <Route path="/apps/categories" element={<Navigate to="/editor/blueprint" replace />} />
       <Route path="/assigments" element={<Navigate to="/dashboard" replace />} />
 
       <Route path="/tasks" element={<TasksPage />} />
-      <Route path="/tasks/:taskId" element={<TaskPage />} />
+      <Route path="/tasks/:taskId" element={<Navigate to="/tasks" replace />} />
 
       <Route path="/yachts" element={<YachtsPage />} />
       <Route path="/yachts/:yachtId" element={<YachtPage />} />
+      <Route path="/yachts/:yachtId/tasks" element={<YachtTasksPage />} />
 
       <Route path="/reports" element={<ReportsRoute />} />
 
@@ -160,55 +157,29 @@ export default function AppRoutes() {
         }
       />
       <Route
-        path="/editor/categories/new"
+        path="/editor/blueprint"
         element={
-          <EditorRouteAdminOrManager>
-            <EditorNewCategoryPage />
-          </EditorRouteAdminOrManager>
+          <EditorRoute>
+            <BlueprintPage />
+          </EditorRoute>
         }
       />
       <Route
-        path="/editor/categories/:categoryId"
+        path="/editor/assignments"
         element={
           <EditorRouteAdminOrManager>
-            <EditorEditCategoryPage />
+            <AssignmentPage />
           </EditorRouteAdminOrManager>
         }
       />
-      <Route
-        path="/editor/categories"
-        element={
-          <EditorRouteAdminOrManager>
-            <EditorCategoriesPage />
-          </EditorRouteAdminOrManager>
-        }
-      />
+      {/* Legacy task/category editor routes discarded (v2.1) */}
+      <Route path="/editor/categories" element={<Navigate to="/editor/blueprint" replace />} />
+      <Route path="/editor/categories/new" element={<Navigate to="/editor/blueprint" replace />} />
+      <Route path="/editor/categories/:categoryId" element={<Navigate to="/editor/blueprint" replace />} />
 
-      {/* Task library editor */}
-      <Route
-        path="/editor/tasks"
-        element={
-          <EditorRouteAdminOrManager>
-            <TasksApp />
-          </EditorRouteAdminOrManager>
-        }
-      />
-      <Route
-        path="/editor/tasks/new"
-        element={
-          <EditorRouteAdminOrManager>
-            <NewTaskPage />
-          </EditorRouteAdminOrManager>
-        }
-      />
-      <Route
-        path="/editor/tasks/:taskId"
-        element={
-          <EditorRouteAdminOrManager>
-            <EditorEditTaskPage />
-          </EditorRouteAdminOrManager>
-        }
-      />
+      <Route path="/editor/tasks" element={<Navigate to="/editor/blueprint" replace />} />
+      <Route path="/editor/tasks/new" element={<Navigate to="/editor/blueprint" replace />} />
+      <Route path="/editor/tasks/:taskId" element={<Navigate to="/editor/blueprint" replace />} />
       <Route path="/editor/task-templates" element={<Navigate to="/editor/yachts" replace />} />
       <Route path="/editor/task-templates/new" element={<Navigate to="/editor/yachts" replace />} />
       <Route path="/editor/task-templates/:templateId" element={<Navigate to="/editor/yachts" replace />} />

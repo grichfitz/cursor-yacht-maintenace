@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabase"
 import { useFocusReload } from "./useFocusReload"
 import { useSession } from "../auth/SessionProvider"
 
-export type AppRole = "admin" | "manager" | "crew"
+export type AppRole = "admin" | "manager" | "crew" | "owner"
 
 export function useMyRole() {
   const { session } = useSession()
@@ -37,7 +37,7 @@ export function useMyRole() {
       }
 
       const r = data
-      if (r === "admin" || r === "manager" || r === "crew") setRole(r)
+      if (r === "admin" || r === "manager" || r === "crew" || r === "owner") setRole(r)
       else setRole("crew")
       setLoading(false)
     } catch {
