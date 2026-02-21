@@ -1,0 +1,793 @@
+ddl
+-- ===================== TABLES =====================
+-- Table: global_categories
+-- Table: group_members
+-- Table: group_memberships
+-- Table: groups
+-- Table: roles
+-- Table: task_assignments
+-- Table: task_incidents
+-- Table: task_templates
+-- Table: user_roles
+-- Table: users
+-- Table: yacht_owners
+-- Table: yachts
+-- ===================== COLUMNS =====================
+public.global_categories | archived_at | timestamp with time zone | nullable=YES | default=null
+public.global_categories | created_at | timestamp with time zone | nullable=NO | default=now()
+public.global_categories | id | uuid | nullable=NO | default=gen_random_uuid()
+public.global_categories | name | text | nullable=NO | default=null
+public.global_categories | parent_category_id | uuid | nullable=YES | default=null
+public.group_members | created_at | timestamp with time zone | nullable=NO | default=now()
+public.group_members | group_id | uuid | nullable=NO | default=null
+public.group_members | id | uuid | nullable=NO | default=gen_random_uuid()
+public.group_members | user_id | uuid | nullable=NO | default=null
+public.group_memberships | created_at | timestamp with time zone | nullable=NO | default=now()
+public.group_memberships | group_id | uuid | nullable=NO | default=null
+public.group_memberships | user_id | uuid | nullable=NO | default=null
+public.groups | archived_at | timestamp with time zone | nullable=YES | default=null
+public.groups | created_at | timestamp with time zone | nullable=NO | default=now()
+public.groups | id | uuid | nullable=NO | default=uuid_generate_v4()
+public.groups | name | text | nullable=NO | default=null
+public.groups | parent_group_id | uuid | nullable=YES | default=null
+public.roles | id | uuid | nullable=NO | default=uuid_generate_v4()
+public.roles | name | text | nullable=NO | default=null
+public.task_assignments | archived_at | timestamp with time zone | nullable=YES | default=null
+public.task_assignments | config | jsonb | nullable=YES | default=null
+public.task_assignments | created_at | timestamp with time zone | nullable=NO | default=now()
+public.task_assignments | description | text | nullable=YES | default=null
+public.task_assignments | group_id | uuid | nullable=YES | default=null
+public.task_assignments | id | uuid | nullable=NO | default=gen_random_uuid()
+public.task_assignments | is_override | boolean | nullable=NO | default=false
+public.task_assignments | name | text | nullable=NO | default=null
+public.task_assignments | parent_assignment_id | uuid | nullable=YES | default=null
+public.task_assignments | period | text | nullable=YES | default=null
+public.task_assignments | template_id | uuid | nullable=YES | default=null
+public.task_assignments | yacht_id | uuid | nullable=YES | default=null
+public.task_incidents | assignment_id | uuid | nullable=NO | default=null
+public.task_incidents | completed_at | timestamp with time zone | nullable=YES | default=null
+public.task_incidents | completed_by | uuid | nullable=YES | default=null
+public.task_incidents | created_at | timestamp with time zone | nullable=NO | default=now()
+public.task_incidents | due_date | date | nullable=NO | default=null
+public.task_incidents | id | uuid | nullable=NO | default=gen_random_uuid()
+public.task_incidents | status | USER-DEFINED | nullable=NO | default='pending'::task_incident_status
+public.task_incidents | yacht_id | uuid | nullable=NO | default=null
+public.task_templates | archived_at | timestamp with time zone | nullable=YES | default=null
+public.task_templates | created_at | timestamp with time zone | nullable=NO | default=now()
+public.task_templates | description | text | nullable=YES | default=null
+public.task_templates | global_category_id | uuid | nullable=NO | default=null
+public.task_templates | id | uuid | nullable=NO | default=gen_random_uuid()
+public.task_templates | metadata | jsonb | nullable=YES | default=null
+public.task_templates | name | text | nullable=NO | default=null
+public.task_templates | period | text | nullable=YES | default=null
+public.user_roles | role_id | uuid | nullable=NO | default=null
+public.user_roles | user_id | uuid | nullable=NO | default=null
+public.users | archived_at | timestamp with time zone | nullable=YES | default=null
+public.users | created_at | timestamp with time zone | nullable=NO | default=now()
+public.users | email | text | nullable=NO | default=null
+public.users | full_name | text | nullable=YES | default=null
+public.users | id | uuid | nullable=NO | default=null
+public.users | short_description | text | nullable=YES | default=null
+public.yacht_owners | user_id | uuid | nullable=NO | default=null
+public.yacht_owners | yacht_id | uuid | nullable=NO | default=null
+public.yachts | archived_at | timestamp with time zone | nullable=YES | default=null
+public.yachts | group_id | uuid | nullable=NO | default=null
+public.yachts | id | uuid | nullable=NO | default=uuid_generate_v4()
+public.yachts | name | text | nullable=NO | default=null
+-- ===================== CONSTRAINTS =====================
+global_categories | global_categories_parent_category_id_fkey | FOREIGN KEY (parent_category_id) REFERENCES global_categories(id) ON DELETE CASCADE
+global_categories | global_categories_pkey | PRIMARY KEY (id)
+group_members | group_members_group_id_fkey | FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE
+group_members | group_members_pkey | PRIMARY KEY (id)
+group_members | group_members_user_id_fkey | FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+"group_members | group_members_user_id_group_id_key | UNIQUE (user_id, group_id)"
+group_memberships | group_memberships_group_id_fkey | FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE RESTRICT
+"group_memberships | group_memberships_pkey | PRIMARY KEY (user_id, group_id)"
+group_memberships | group_memberships_user_id_fkey | FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE RESTRICT
+groups | groups_parent_group_id_fkey | FOREIGN KEY (parent_group_id) REFERENCES groups(id) ON DELETE RESTRICT
+groups | groups_pkey | PRIMARY KEY (id)
+roles | roles_name_key | UNIQUE (name)
+roles | roles_pkey | PRIMARY KEY (id)
+task_assignments | assignment_scope_check | CHECK ((((group_id IS NOT NULL) AND (yacht_id IS NULL)) OR ((group_id IS NULL) AND (yacht_id IS NOT NULL))))
+task_assignments | task_assignments_group_id_fkey | FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE
+task_assignments | task_assignments_parent_assignment_id_fkey | FOREIGN KEY (parent_assignment_id) REFERENCES task_assignments(id) ON DELETE CASCADE
+task_assignments | task_assignments_pkey | PRIMARY KEY (id)
+task_assignments | task_assignments_template_id_fkey | FOREIGN KEY (template_id) REFERENCES task_templates(id) ON DELETE SET NULL
+task_assignments | task_assignments_yacht_id_fkey | FOREIGN KEY (yacht_id) REFERENCES yachts(id) ON DELETE CASCADE
+task_incidents | task_incidents_assignment_id_fkey | FOREIGN KEY (assignment_id) REFERENCES task_assignments(id) ON DELETE CASCADE
+task_incidents | task_incidents_completed_by_fkey | FOREIGN KEY (completed_by) REFERENCES users(id)
+task_incidents | task_incidents_pkey | PRIMARY KEY (id)
+task_incidents | task_incidents_yacht_id_fkey | FOREIGN KEY (yacht_id) REFERENCES yachts(id) ON DELETE CASCADE
+task_templates | task_templates_global_category_id_fkey | FOREIGN KEY (global_category_id) REFERENCES global_categories(id) ON DELETE CASCADE
+task_templates | task_templates_pkey | PRIMARY KEY (id)
+user_roles | user_roles_pkey | PRIMARY KEY (user_id)
+user_roles | user_roles_role_id_fkey | FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE RESTRICT
+user_roles | user_roles_user_id_fkey | FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE RESTRICT
+users | users_id_fkey | FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE
+users | users_pkey | PRIMARY KEY (id)
+"yacht_owners | yacht_owners_pkey | PRIMARY KEY (yacht_id, user_id)"
+yacht_owners | yacht_owners_user_id_fkey | FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE RESTRICT
+yacht_owners | yacht_owners_yacht_id_fkey | FOREIGN KEY (yacht_id) REFERENCES yachts(id) ON DELETE RESTRICT
+yachts | yachts_group_id_fkey | FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE RESTRICT
+yachts | yachts_pkey | PRIMARY KEY (id)
+-- ===================== INDEXES =====================
+global_categories | global_categories_pkey | CREATE UNIQUE INDEX global_categories_pkey ON public.global_categories USING btree (id)
+group_members | group_members_pkey | CREATE UNIQUE INDEX group_members_pkey ON public.group_members USING btree (id)
+"group_members | group_members_user_id_group_id_key | CREATE UNIQUE INDEX group_members_user_id_group_id_key ON public.group_members USING btree (user_id, group_id)"
+"group_memberships | group_memberships_pkey | CREATE UNIQUE INDEX group_memberships_pkey ON public.group_memberships USING btree (user_id, group_id)"
+groups | groups_pkey | CREATE UNIQUE INDEX groups_pkey ON public.groups USING btree (id)
+groups | idx_groups_parent_group_id | CREATE INDEX idx_groups_parent_group_id ON public.groups USING btree (parent_group_id)
+roles | roles_name_key | CREATE UNIQUE INDEX roles_name_key ON public.roles USING btree (name)
+roles | roles_pkey | CREATE UNIQUE INDEX roles_pkey ON public.roles USING btree (id)
+task_assignments | task_assignments_pkey | CREATE UNIQUE INDEX task_assignments_pkey ON public.task_assignments USING btree (id)
+task_incidents | task_incidents_pkey | CREATE UNIQUE INDEX task_incidents_pkey ON public.task_incidents USING btree (id)
+task_templates | task_templates_pkey | CREATE UNIQUE INDEX task_templates_pkey ON public.task_templates USING btree (id)
+user_roles | user_roles_pkey | CREATE UNIQUE INDEX user_roles_pkey ON public.user_roles USING btree (user_id)
+users | users_pkey | CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)
+"yacht_owners | yacht_owners_pkey | CREATE UNIQUE INDEX yacht_owners_pkey ON public.yacht_owners USING btree (yacht_id, user_id)"
+yachts | yachts_pkey | CREATE UNIQUE INDEX yachts_pkey ON public.yachts USING btree (id)
+-- ===================== RLS POLICIES =====================
+"global_categories | global_categories_admin_write | ALL | roles={public} | using=(EXISTS ( SELECT 1
+   FROM (user_roles ur
+     JOIN roles r ON ((r.id = ur.role_id)))
+  WHERE ((ur.user_id = auth.uid()) AND (r.name = 'admin'::text)))) | check=(EXISTS ( SELECT 1
+   FROM (user_roles ur
+     JOIN roles r ON ((r.id = ur.role_id)))
+  WHERE ((ur.user_id = auth.uid()) AND (r.name = 'admin'::text))))"
+global_categories | global_categories_read | SELECT | roles={public} | using=true | check=
+"group_members | Admins and managers manage memberships | ALL | roles={public} | using=(EXISTS ( SELECT 1
+   FROM (user_roles ur
+     JOIN roles r ON ((ur.role_id = r.id)))
+  WHERE ((ur.user_id = auth.uid()) AND (r.name = ANY (ARRAY['admin'::text, 'manager'::text]))))) | check=(EXISTS ( SELECT 1
+   FROM (user_roles ur
+     JOIN roles r ON ((ur.role_id = r.id)))
+  WHERE ((ur.user_id = auth.uid()) AND (r.name = ANY (ARRAY['admin'::text, 'manager'::text])))))"
+group_members | Users can view their memberships | SELECT | roles={public} | using=(user_id = auth.uid()) | check=
+group_memberships | group_memberships_delete_admin | DELETE | roles={authenticated} | using=is_admin() | check=
+group_memberships | group_memberships_insert_admin | INSERT | roles={authenticated} | using= | check=is_admin()
+group_memberships | group_memberships_select_admin_all | SELECT | roles={authenticated} | using=is_admin() | check=
+"group_memberships | group_memberships_select_manager_crew_in_groups | SELECT | roles={authenticated} | using=((current_user_role() = ANY (ARRAY['manager'::text, 'crew'::text])) AND (group_id IN ( SELECT user_group_ids() AS user_group_ids))) | check="
+group_memberships | group_memberships_select_self | SELECT | roles={authenticated} | using=(user_id = auth.uid()) | check=
+group_memberships | group_memberships_update_admin | UPDATE | roles={authenticated} | using=is_admin() | check=is_admin()
+"groups | Users can view their groups | SELECT | roles={public} | using=(id IN ( SELECT group_members.group_id
+   FROM group_members
+  WHERE (group_members.user_id = auth.uid()))) | check="
+groups | groups_delete_admin | DELETE | roles={authenticated} | using=is_admin() | check=
+groups | groups_insert_admin | INSERT | roles={authenticated} | using= | check=is_admin()
+groups | groups_select_admin_all | SELECT | roles={authenticated} | using=is_admin() | check=
+"groups | groups_select_manager_crew_in_groups | SELECT | roles={authenticated} | using=((current_user_role() = ANY (ARRAY['manager'::text, 'crew'::text])) AND (id IN ( SELECT user_group_ids() AS user_group_ids))) | check="
+groups | groups_update_admin | UPDATE | roles={authenticated} | using=is_admin() | check=is_admin()
+"task_assignments | task_assignments_delete | DELETE | roles={public} | using=(EXISTS ( SELECT 1
+   FROM (user_roles ur
+     JOIN roles r ON ((r.id = ur.role_id)))
+  WHERE ((ur.user_id = auth.uid()) AND (r.name = ANY (ARRAY['admin'::text, 'manager'::text]))))) | check="
+"task_assignments | task_assignments_insert | INSERT | roles={public} | using= | check=(EXISTS ( SELECT 1
+   FROM (user_roles ur
+     JOIN roles r ON ((r.id = ur.role_id)))
+  WHERE ((ur.user_id = auth.uid()) AND (r.name = ANY (ARRAY['admin'::text, 'manager'::text])))))"
+"task_assignments | task_assignments_select | SELECT | roles={public} | using=(EXISTS ( WITH RECURSIVE user_groups AS (
+         SELECT g.id,
+            g.parent_group_id
+           FROM (groups g
+             JOIN group_memberships gm ON ((gm.group_id = g.id)))
+          WHERE (gm.user_id = auth.uid())
+        ), upward AS (
+         SELECT user_groups.id,
+            user_groups.parent_group_id
+           FROM user_groups
+        UNION
+         SELECT g.id,
+            g.parent_group_id
+           FROM (groups g
+             JOIN upward u ON ((g.id = u.parent_group_id)))
+        ), downward AS (
+         SELECT g.id,
+            g.parent_group_id
+           FROM (groups g
+             JOIN user_groups ug ON ((g.parent_group_id = ug.id)))
+        UNION
+         SELECT g2.id,
+            g2.parent_group_id
+           FROM (groups g2
+             JOIN downward d ON ((g2.parent_group_id = d.id)))
+        ), full_branch AS (
+         SELECT upward.id
+           FROM upward
+        UNION
+         SELECT downward.id
+           FROM downward
+        ), assignment_group AS (
+         SELECT COALESCE(task_assignments.group_id, y.group_id) AS gid
+           FROM yachts y
+          WHERE ((y.id = task_assignments.yacht_id) OR (task_assignments.group_id IS NOT NULL))
+        )
+ SELECT 1
+   FROM (full_branch fb
+     JOIN assignment_group ag ON ((ag.gid = fb.id))))) | check="
+"task_assignments | task_assignments_update | UPDATE | roles={public} | using=(EXISTS ( SELECT 1
+   FROM (user_roles ur
+     JOIN roles r ON ((r.id = ur.role_id)))
+  WHERE ((ur.user_id = auth.uid()) AND (r.name = ANY (ARRAY['admin'::text, 'manager'::text]))))) | check=(EXISTS ( SELECT 1
+   FROM (user_roles ur
+     JOIN roles r ON ((r.id = ur.role_id)))
+  WHERE ((ur.user_id = auth.uid()) AND (r.name = ANY (ARRAY['admin'::text, 'manager'::text])))))"
+"task_incidents | task_incidents_delete | DELETE | roles={public} | using=(EXISTS ( SELECT 1
+   FROM (user_roles ur
+     JOIN roles r ON ((r.id = ur.role_id)))
+  WHERE ((ur.user_id = auth.uid()) AND (r.name = 'admin'::text)))) | check="
+"task_incidents | task_incidents_insert | INSERT | roles={public} | using= | check=(EXISTS ( SELECT 1
+   FROM (user_roles ur
+     JOIN roles r ON ((r.id = ur.role_id)))
+  WHERE ((ur.user_id = auth.uid()) AND (r.name = ANY (ARRAY['admin'::text, 'manager'::text])))))"
+"task_incidents | task_incidents_select | SELECT | roles={public} | using=(EXISTS ( WITH RECURSIVE user_groups AS (
+         SELECT g.id,
+            g.parent_group_id
+           FROM (groups g
+             JOIN group_memberships gm ON ((gm.group_id = g.id)))
+          WHERE (gm.user_id = auth.uid())
+        ), upward AS (
+         SELECT user_groups.id,
+            user_groups.parent_group_id
+           FROM user_groups
+        UNION
+         SELECT g.id,
+            g.parent_group_id
+           FROM (groups g
+             JOIN upward u ON ((g.id = u.parent_group_id)))
+        ), downward AS (
+         SELECT g.id,
+            g.parent_group_id
+           FROM (groups g
+             JOIN user_groups ug ON ((g.parent_group_id = ug.id)))
+        UNION
+         SELECT g2.id,
+            g2.parent_group_id
+           FROM (groups g2
+             JOIN downward d ON ((g2.parent_group_id = d.id)))
+        ), full_branch AS (
+         SELECT upward.id
+           FROM upward
+        UNION
+         SELECT downward.id
+           FROM downward
+        )
+ SELECT 1
+   FROM (full_branch fb
+     JOIN yachts y ON ((y.group_id = fb.id)))
+  WHERE (y.id = task_incidents.yacht_id))) | check="
+"task_incidents | task_incidents_update | UPDATE | roles={public} | using=(EXISTS ( SELECT 1
+   FROM (user_roles ur
+     JOIN roles r ON ((r.id = ur.role_id)))
+  WHERE ((ur.user_id = auth.uid()) AND (r.name = ANY (ARRAY['admin'::text, 'manager'::text, 'crew'::text]))))) | check=(EXISTS ( SELECT 1
+   FROM (user_roles ur
+     JOIN roles r ON ((r.id = ur.role_id)))
+  WHERE ((ur.user_id = auth.uid()) AND (r.name = ANY (ARRAY['admin'::text, 'manager'::text, 'crew'::text])))))"
+"task_templates | task_templates_admin_write | ALL | roles={public} | using=(EXISTS ( SELECT 1
+   FROM (user_roles ur
+     JOIN roles r ON ((r.id = ur.role_id)))
+  WHERE ((ur.user_id = auth.uid()) AND (r.name = 'admin'::text)))) | check=(EXISTS ( SELECT 1
+   FROM (user_roles ur
+     JOIN roles r ON ((r.id = ur.role_id)))
+  WHERE ((ur.user_id = auth.uid()) AND (r.name = 'admin'::text))))"
+task_templates | task_templates_read | SELECT | roles={public} | using=true | check=
+user_roles | Admins and managers delete roles | DELETE | roles={public} | using=current_user_is_admin_or_manager() | check=
+user_roles | Admins and managers insert roles | INSERT | roles={public} | using= | check=current_user_is_admin_or_manager()
+user_roles | Admins and managers select roles | SELECT | roles={public} | using=(current_user_is_admin_or_manager() OR (user_id = auth.uid())) | check=
+user_roles | Admins and managers update roles | UPDATE | roles={public} | using=current_user_is_admin_or_manager() | check=current_user_is_admin_or_manager()
+"users | Admins and managers update users | UPDATE | roles={public} | using=(EXISTS ( SELECT 1
+   FROM (user_roles ur
+     JOIN roles r ON ((ur.role_id = r.id)))
+  WHERE ((ur.user_id = auth.uid()) AND (r.name = ANY (ARRAY['admin'::text, 'manager'::text]))))) | check=(EXISTS ( SELECT 1
+   FROM (user_roles ur
+     JOIN roles r ON ((ur.role_id = r.id)))
+  WHERE ((ur.user_id = auth.uid()) AND (r.name = ANY (ARRAY['admin'::text, 'manager'::text])))))"
+"users | Scoped user visibility | SELECT | roles={public} | using=((archived_at IS NULL) AND ((current_user_is_admin_or_manager() AND (EXISTS ( SELECT 1
+   FROM (user_roles ur
+     JOIN roles r ON ((ur.role_id = r.id)))
+  WHERE ((ur.user_id = auth.uid()) AND (r.name = 'admin'::text))))) OR (current_user_is_admin_or_manager() AND (EXISTS ( SELECT 1
+   FROM (group_members gm_me
+     JOIN group_members gm_other ON ((gm_me.group_id = gm_other.group_id)))
+  WHERE ((gm_me.user_id = auth.uid()) AND (gm_other.user_id = users.id))))) OR (id = auth.uid()))) | check="
+users | User can view self | SELECT | roles={public} | using=(id = auth.uid()) | check=
+yacht_owners | yacht_owners_delete_admin | DELETE | roles={authenticated} | using=is_admin() | check=
+yacht_owners | yacht_owners_insert_admin | INSERT | roles={authenticated} | using= | check=is_admin()
+yacht_owners | yacht_owners_select_admin_all | SELECT | roles={authenticated} | using=is_admin() | check=
+"yacht_owners | yacht_owners_select_manager_crew_in_scope | SELECT | roles={authenticated} | using=((current_user_role() = ANY (ARRAY['manager'::text, 'crew'::text])) AND (yacht_id IN ( SELECT user_yacht_ids() AS user_yacht_ids))) | check="
+yacht_owners | yacht_owners_select_owner_self | SELECT | roles={authenticated} | using=((current_user_role() = 'owner'::text) AND (user_id = auth.uid())) | check=
+yacht_owners | yacht_owners_update_admin | UPDATE | roles={authenticated} | using=is_admin() | check=is_admin()
+"yachts | Users access yachts by membership | SELECT | roles={public} | using=(group_id IN ( SELECT group_members.group_id
+   FROM group_members
+  WHERE (group_members.user_id = auth.uid()))) | check="
+"yachts | Users update yachts by membership | UPDATE | roles={public} | using=(group_id IN ( SELECT group_members.group_id
+   FROM group_members
+  WHERE (group_members.user_id = auth.uid()))) | check="
+yachts | yachts_delete_admin | DELETE | roles={authenticated} | using=is_admin() | check=
+yachts | yachts_insert_admin | INSERT | roles={authenticated} | using= | check=is_admin()
+yachts | yachts_select_admin_all | SELECT | roles={authenticated} | using=is_admin() | check=
+"yachts | yachts_select_manager_crew_in_scope | SELECT | roles={authenticated} | using=((current_user_role() = ANY (ARRAY['manager'::text, 'crew'::text])) AND (id IN ( SELECT user_yacht_ids() AS user_yacht_ids))) | check="
+yachts | yachts_select_owner_in_scope | SELECT | roles={authenticated} | using=((current_user_role() = 'owner'::text) AND (id IN ( SELECT user_yacht_ids() AS user_yacht_ids))) | check=
+yachts | yachts_update_admin | UPDATE | roles={authenticated} | using=is_admin() | check=is_admin()
+-- ===================== FUNCTIONS =====================
+"CREATE OR REPLACE FUNCTION public.approve_yacht_task(p_task_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'auth'
+AS $function$
+declare
+v_task public.yacht_tasks%rowtype;
+v_role text;
+begin
+select *
+into v_task
+from public.yacht_tasks
+where id = p_task_id
+for update;
+if not found then
+raise exception 'task not found: %', p_task_id;
+end if;
+v_role := public.current_user_role();
+if not (
+public.is_admin()
+or (
+v_role = 'manager'
+and v_task.yacht_id in (select public.user_yacht_ids())
+)
+) then
+raise exception 'not authorized';
+end if;
+if v_task.status <> 'pending_review' then
+raise exception 'invalid state: expected pending_review, got %', v_task.status;
+end if;
+update public.yacht_tasks
+set
+status = 'approved',
+approved_at = now(),
+approved_by = auth.uid()
+where id = p_task_id;
+if v_task.interval_days is not null then
+if v_task.completed_at is null then
+raise exception 'invalid state: completed_at is null for task %', p_task_id;
+end if;
+insert into public.yacht_tasks (
+yacht_id,
+group_template_id,
+origin_global_template_id,
+title,
+description,
+interval_days,
+checklist_json,
+due_date,
+status
+)
+values (
+v_task.yacht_id,
+v_task.group_template_id,
+v_task.origin_global_template_id,
+v_task.title,
+v_task.description,
+v_task.interval_days,
+v_task.checklist_json,
+v_task.completed_at + (v_task.interval_days * interval '1 day'),
+'open'
+)
+on conflict do nothing;
+end if;
+end;
+$function$
+"
+"CREATE OR REPLACE FUNCTION public.assign_category_to_yacht(p_category_id uuid, p_yacht_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'auth'
+AS $function$
+declare
+v_role text;
+begin
+v_role := public.current_user_role();
+if not (
+public.is_admin()
+or (
+v_role = 'manager'
+and p_yacht_id in (select public.user_yacht_ids())
+)
+) then
+raise exception 'not authorized';
+end if;
+insert into public.yacht_tasks (
+yacht_id,
+group_template_id,
+origin_global_template_id,
+title,
+description,
+interval_days,
+checklist_json,
+due_date,
+status
+)
+select
+p_yacht_id,
+null,
+gt.id,
+gt.title,
+gt.description,
+gt.interval_days,
+gt.checklist_json,
+now(),
+'open'
+from public.global_templates gt
+join public.category_templates ct
+on ct.global_template_id = gt.id
+where ct.category_id = p_category_id
+and not exists (
+select 1
+from public.yacht_tasks yt
+left join public.group_templates gpt
+on gpt.id = yt.group_template_id
+where yt.yacht_id = p_yacht_id
+and yt.deleted_at is null
+and yt.status <> 'approved'
+and (
+yt.origin_global_template_id = gt.id
+or gpt.origin_global_template_id = gt.id
+)
+)
+on conflict do nothing;
+return;
+end;
+$function$
+"
+"CREATE OR REPLACE FUNCTION public.assign_global_category_subtree_to_group(p_category_id uuid, p_group_id uuid, p_override_existing boolean)
+ RETURNS void
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+    tpl record;
+BEGIN
+    FOR tpl IN
+        WITH RECURSIVE category_tree AS (
+            SELECT id FROM global_categories WHERE id = p_category_id
+            UNION
+            SELECT gc.id
+            FROM global_categories gc
+            JOIN category_tree ct
+            ON gc.parent_category_id = ct.id
+        )
+        SELECT t.*
+        FROM task_templates t
+        JOIN category_tree ct ON t.global_category_id = ct.id
+    LOOP
+        PERFORM assign_global_template_to_group(
+            tpl.id,
+            p_group_id,
+            p_override_existing
+        );
+    END LOOP;
+END;
+$function$
+"
+"CREATE OR REPLACE FUNCTION public.assign_global_template_to_group(p_global_template_id uuid, p_group_id uuid)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'auth'
+AS $function$
+declare
+v_new_group_template_id uuid;
+v_role text;
+v_gt public.global_templates%rowtype;
+begin
+v_role := public.current_user_role();
+if not (
+public.is_admin()
+or (
+v_role = 'manager'
+and p_group_id in (select public.user_group_ids())
+)
+) then
+raise exception 'not authorized';
+end if;
+if exists (
+select 1
+from public.group_templates gt
+where gt.group_id = p_group_id
+and gt.origin_global_template_id = p_global_template_id
+and gt.archived_at is null
+) then
+raise exception 'group_template already exists for global_template % and group %', p_global_template_id, p_group_id;
+end if;
+select *
+into v_gt
+from public.global_templates
+where id = p_global_template_id;
+if not found then
+raise exception 'global_template not found: %', p_global_template_id;
+end if;
+insert into public.group_templates (
+group_id,
+origin_global_template_id,
+title,
+description,
+interval_days,
+checklist_json,
+active
+)
+values (
+p_group_id,
+p_global_template_id,
+v_gt.title,
+v_gt.description,
+v_gt.interval_days,
+v_gt.checklist_json,
+true
+)
+returning id into v_new_group_template_id;
+insert into public.yacht_tasks (
+yacht_id,
+group_template_id,
+title,
+description,
+interval_days,
+checklist_json,
+due_date,
+status
+)
+select
+y.id,
+v_new_group_template_id,
+gt.title,
+gt.description,
+gt.interval_days,
+gt.checklist_json,
+now(),
+'open'
+from public.yachts y
+join public.group_templates gt
+on gt.id = v_new_group_template_id
+where y.group_id = p_group_id
+on conflict do nothing;
+return v_new_group_template_id;
+end;
+$function$
+"
+"CREATE OR REPLACE FUNCTION public.assign_global_template_to_group(p_template_id uuid, p_group_id uuid, p_override_existing boolean)
+ RETURNS void
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+    tpl record;
+BEGIN
+    SELECT * INTO tpl FROM task_templates WHERE id = p_template_id;
+
+    IF tpl IS NULL THEN
+        RAISE EXCEPTION 'Template not found';
+    END IF;
+
+    IF p_override_existing THEN
+        DELETE FROM task_assignments
+        WHERE group_id = p_group_id
+        AND template_id = p_template_id;
+    END IF;
+
+    INSERT INTO task_assignments (
+        template_id,
+        group_id,
+        name,
+        description,
+        period
+    )
+    VALUES (
+        tpl.id,
+        p_group_id,
+        tpl.name,
+        tpl.description,
+        tpl.period
+    );
+END;
+$function$
+"
+"CREATE OR REPLACE FUNCTION public.complete_yacht_task(p_task_id uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'auth'
+AS $function$
+declare
+v_task public.yacht_tasks%rowtype;
+v_role text;
+begin
+select *
+into v_task
+from public.yacht_tasks
+where id = p_task_id
+for update;
+if not found then
+raise exception 'task not found: %', p_task_id;
+end if;
+v_role := public.current_user_role();
+if not (
+public.is_admin()
+or (
+v_role in ('manager','crew')
+and v_task.yacht_id in (select public.user_yacht_ids())
+)
+) then
+raise exception 'not authorized';
+end if;
+if v_task.status <> 'open' then
+raise exception 'invalid state: expected open, got %', v_task.status;
+end if;
+update public.yacht_tasks
+set
+status = 'pending_review',
+completed_at = now(),
+completed_by = auth.uid()
+where id = p_task_id;
+end;
+$function$
+"
+"CREATE OR REPLACE FUNCTION public.create_yacht_assignment_override(p_parent_assignment_id uuid, p_yacht_id uuid)
+ RETURNS uuid
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+    parent_assignment record;
+    new_id uuid;
+BEGIN
+    SELECT * INTO parent_assignment
+    FROM task_assignments
+    WHERE id = p_parent_assignment_id;
+
+    IF parent_assignment IS NULL THEN
+        RAISE EXCEPTION 'Parent assignment not found';
+    END IF;
+
+    INSERT INTO task_assignments (
+        template_id,
+        parent_assignment_id,
+        yacht_id,
+        name,
+        description,
+        period,
+        config,
+        is_override
+    )
+    VALUES (
+        parent_assignment.template_id,
+        parent_assignment.id,
+        p_yacht_id,
+        parent_assignment.name,
+        parent_assignment.description,
+        parent_assignment.period,
+        parent_assignment.config,
+        true
+    )
+    RETURNING id INTO new_id;
+
+    RETURN new_id;
+END;
+$function$
+"
+"CREATE OR REPLACE FUNCTION public.current_user_is_admin_or_manager()
+ RETURNS boolean
+ LANGUAGE sql
+ SECURITY DEFINER
+AS $function$
+  SELECT EXISTS (
+    SELECT 1
+    FROM user_roles ur
+    JOIN roles r ON ur.role_id = r.id
+    WHERE ur.user_id = auth.uid()
+      AND r.name IN ('admin','manager')
+  );
+$function$
+"
+"CREATE OR REPLACE FUNCTION public.current_user_role()
+ RETURNS text
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'auth'
+AS $function$
+select r.name
+from public.user_roles ur
+join public.roles r on r.id = ur.role_id
+where ur.user_id = auth.uid()
+limit 1;
+$function$
+"
+"CREATE OR REPLACE FUNCTION public.handle_new_user()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+  INSERT INTO public.users (id, email)
+  VALUES (NEW.id, NEW.email)
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$function$
+"
+"CREATE OR REPLACE FUNCTION public.is_admin()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'auth'
+AS $function$
+select exists (
+select 1
+from public.user_roles ur
+join public.roles r on r.id = ur.role_id
+where ur.user_id = auth.uid()
+and r.name = 'admin'
+);
+$function$
+"
+"CREATE OR REPLACE FUNCTION public.user_group_ids()
+ RETURNS SETOF uuid
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'auth'
+AS $function$
+declare
+begin
+  if public.is_admin() then
+    return query
+    select g.id
+    from public.groups g;
+    return;
+  end if;
+
+  return query
+  with recursive group_tree as (
+    select g.id
+    from public.groups g
+    join public.group_memberships gm
+      on gm.group_id = g.id
+    where gm.user_id = auth.uid()
+
+    union all
+
+    select child.id
+    from public.groups child
+    join group_tree gt
+      on child.parent_group_id = gt.id
+  )
+  select id from group_tree;
+end;
+$function$
+"
+"CREATE OR REPLACE FUNCTION public.user_yacht_ids()
+ RETURNS SETOF uuid
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'auth'
+AS $function$
+declare
+role_name text;
+begin
+if public.is_admin() then
+return query
+select y.id
+from public.yachts y;
+return;
+end if;
+role_name := public.current_user_role();
+if role_name in ('manager', 'crew') then
+return query
+select y.id
+from public.yachts y
+where y.group_id in (select public.user_group_ids());
+elsif role_name = 'owner' then
+return query
+select yo.yacht_id
+from public.yacht_owners yo
+where yo.user_id = auth.uid();
+else
+return;
+end if;
+end;
+$function$
+"
+-- ===================== TRIGGERS =====================
