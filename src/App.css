@@ -93,6 +93,33 @@ body {
   }
 }
 
+.app--admin {
+  max-width: none;
+  width: 100%;
+  height: 100vh;
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
+  background: #ffffff;
+}
+
+@media (min-width: 480px) {
+  .app.app--admin {
+    margin-top: 0;
+    margin-bottom: 0;
+    height: 100vh;
+    border-radius: 0;
+    overflow: hidden;
+    box-shadow: none;
+    border: none;
+  }
+}
+
+.app-content--admin {
+  background: #ffffff;
+}
+
 /* ---------- Header ---------- */
 
 /* ULTRA top bar (matches reference images) */

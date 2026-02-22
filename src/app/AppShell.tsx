@@ -11,6 +11,7 @@ type AppShellProps = {
   contentClassName?: string;
   showTabs?: boolean;
   showTopbar?: boolean;
+  variant?: "mobile" | "admin";
 };
 
 export default function AppShell({
@@ -18,6 +19,7 @@ export default function AppShell({
   contentClassName,
   showTabs = true,
   showTopbar = true,
+  variant = "mobile",
 }: AppShellProps) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -40,7 +42,7 @@ export default function AppShell({
     : null;
 
   return (
-    <div className="app">
+    <div className={`app ${variant === "admin" ? "app--admin" : ""}`.trim()}>
       {showTopbar && (
         <header className="topbar">
           <div className="topbar-left">

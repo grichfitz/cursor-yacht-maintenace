@@ -12,6 +12,7 @@ export default function App() {
 
   const navigate = useNavigate();
   const location = useLocation();
+  const isAdminConsole = location.pathname === "/admin" || location.pathname.startsWith("/admin/");
 
   useEffect(() => {
     if (!loading && session && location.pathname === "/") {
@@ -36,7 +37,12 @@ export default function App() {
   }
 
   return (
-    <AppShell showTabs={true}>
+    <AppShell
+      showTabs={!isAdminConsole}
+      showTopbar={!isAdminConsole}
+      variant={isAdminConsole ? "admin" : "mobile"}
+      contentClassName={isAdminConsole ? "app-content--admin" : undefined}
+    >
       <AppRoutes />
     </AppShell>
   );

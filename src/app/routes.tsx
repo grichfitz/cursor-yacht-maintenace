@@ -22,6 +22,9 @@ import { useMyRole } from "../hooks/useMyRole"
 import BlueprintPage from "../v21/blueprint/BlueprintPage"
 import AssignmentPage from "../v21/assignments/AssignmentPage"
 import YachtTasksPage from "../v21/yachtTasks/YachtTasksPage"
+import AdminGroupsPage from "./admin/groups/page"
+import AdminUsersPage from "./admin/users/page"
+import AdminLayout from "./admin/layout"
 
 function EditorRoute({ children }: { children: React.ReactNode }) {
   return <RequireRole allow={["admin"]}>{children}</RequireRole>
@@ -183,6 +186,25 @@ export default function AppRoutes() {
       <Route path="/editor/task-templates" element={<Navigate to="/editor/yachts" replace />} />
       <Route path="/editor/task-templates/new" element={<Navigate to="/editor/yachts" replace />} />
       <Route path="/editor/task-templates/:templateId" element={<Navigate to="/editor/yachts" replace />} />
+
+      {/* Enterprise Admin Console v2.1 (parallel UI; RLS authoritative) */}
+      <Route path="/admin" element={<Navigate to="/admin/groups" replace />} />
+      <Route
+        path="/admin/groups"
+        element={
+          <AdminLayout>
+            <AdminGroupsPage />
+          </AdminLayout>
+        }
+      />
+      <Route
+        path="/admin/users"
+        element={
+          <AdminLayout>
+            <AdminUsersPage />
+          </AdminLayout>
+        }
+      />
 
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
